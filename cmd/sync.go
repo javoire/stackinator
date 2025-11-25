@@ -22,7 +22,9 @@ var syncCmd = &cobra.Command{
 This ensures your stack is up-to-date and all PRs have the correct base branches.
 
 If a parent PR has been merged, the child branches will be rebased to point to
-the merged parent's parent.`,
+the merged parent's parent.
+
+Uncommitted changes are automatically stashed and reapplied (using --autostash).`,
 	Example: `  # Sync all branches and update PRs
   stack sync
 
@@ -50,14 +52,32 @@ func runSync() error {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// Check if working tree is clean
+	// Check if working tree is clean and stash if needed
 	clean, err := git.IsWorkingTreeClean()
 	if err != nil {
 		return fmt.Errorf("failed to check working tree status: %w", err)
 	}
+
+	stashed := false
 	if !clean {
-		return fmt.Errorf("working tree has uncommitted changes. Please commit or stash them first")
+		fmt.Println("Stashing uncommitted changes...")
+		if err := git.Stash("stack-sync-autostash"); err != nil {
+			return fmt.Errorf("failed to stash changes: %w", err)
+		}
+		stashed = true
+		fmt.Println()
 	}
+
+	// Ensure stash is popped at the end
+	defer func() {
+		if stashed {
+			fmt.Println("\nRestoring stashed changes...")
+			if err := git.StashPop(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
+			}
+		}
+	}()
 
 	fmt.Println("Syncing stack...")
 	fmt.Println()
@@ -95,8 +115,24 @@ func runSync() error {
 	}
 
 	// Process each branch
-	for _, branch := range sorted {
-		fmt.Printf("Processing %s...\n", branch.Name)
+	for i, branch := range sorted {
+		progress := fmt.Sprintf("(%d/%d)", i+1, len(sorted))
+
+		// Check if this branch has a merged PR - if so, remove from stack tracking
+		if pr, exists := prCache[branch.Name]; exists && pr.State == "MERGED" {
+			fmt.Printf("%s Skipping %s (PR #%d is merged)...\n", progress, branch.Name, pr.Number)
+			fmt.Printf("  Removing from stack tracking...\n")
+			configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
+			if err := git.UnsetConfig(configKey); err != nil {
+				fmt.Fprintf(os.Stderr, "  Warning: failed to remove stack config: %v\n", err)
+			} else {
+				fmt.Printf("  ✓ Removed. You can delete this branch with: git branch -d %s\n", branch.Name)
+			}
+			fmt.Println()
+			continue
+		}
+
+		fmt.Printf("%s Processing %s...\n", progress, branch.Name)
 
 		// Check if parent PR is merged
 		parentUpdated := false
@@ -122,8 +158,7 @@ func runSync() error {
 
 		// Checkout the branch
 		if err := git.CheckoutBranch(branch.Name); err != nil {
-			fmt.Fprintf(os.Stderr, "  Warning: failed to checkout %s: %v\n", branch.Name, err)
-			continue
+			return fmt.Errorf("failed to checkout %s: %w", branch.Name, err)
 		}
 
 		// Rebase onto parent
