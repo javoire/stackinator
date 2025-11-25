@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
@@ -202,8 +203,115 @@ func runSync() error {
 	}
 
 	fmt.Println("✓ Sync complete!")
+	fmt.Println()
+
+	// Display the updated stack status
+	if err := displayStatusAfterSync(); err != nil {
+		// Don't fail if we can't display status, just warn
+		fmt.Fprintf(os.Stderr, "Warning: failed to display stack status: %v\n", err)
+	}
 
 	return nil
+}
+
+// displayStatusAfterSync shows the stack tree after a successful sync
+func displayStatusAfterSync() error {
+	currentBranch, err := git.GetCurrentBranch()
+	if err != nil {
+		return fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	tree, err := stack.BuildStackTree()
+	if err != nil {
+		return fmt.Errorf("failed to build stack tree: %w", err)
+	}
+
+	// Fetch all PRs for display
+	prCache, err := github.GetAllPRs()
+	if err != nil {
+		prCache = make(map[string]*github.PRInfo)
+	}
+
+	// Filter out branches with merged PRs (leaf nodes only)
+	tree = filterMergedBranchesForSync(tree, prCache)
+
+	// Print the tree
+	printTreeForSync(tree, currentBranch, prCache)
+
+	return nil
+}
+
+// filterMergedBranchesForSync removes branches with merged PRs from the tree,
+// but only if they don't have children (to keep the stack structure visible)
+func filterMergedBranchesForSync(node *stack.TreeNode, prCache map[string]*github.PRInfo) *stack.TreeNode {
+	if node == nil {
+		return nil
+	}
+
+	// Filter children recursively first
+	var filteredChildren []*stack.TreeNode
+	for _, child := range node.Children {
+		// Recurse first to process all descendants
+		filtered := filterMergedBranchesForSync(child, prCache)
+		
+		// Only filter out merged branches if they have no children
+		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
+			// If this merged branch still has children after filtering, keep it
+			if filtered != nil && len(filtered.Children) > 0 {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+			// Otherwise skip this merged leaf branch
+		} else {
+			// Not merged, keep it
+			if filtered != nil {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+		}
+	}
+
+	node.Children = filteredChildren
+	return node
+}
+
+// printTreeForSync prints the stack tree after sync
+func printTreeForSync(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo) {
+	if node == nil {
+		return
+	}
+	printTreeVerticalForSync(node, currentBranch, prCache, false)
+}
+
+func printTreeVerticalForSync(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+	if node == nil {
+		return
+	}
+
+	// Determine the current branch marker
+	marker := ""
+	if node.Name == currentBranch {
+		marker = " *"
+	}
+
+	// Get PR info from cache
+	prInfo := ""
+	if node.Name != stack.GetBaseBranch() {
+		if pr, exists := prCache[node.Name]; exists {
+			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
+		}
+	}
+
+	// Print pipe if needed
+	if isPipe {
+		fmt.Println("  |")
+	}
+
+	// Print current node
+	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
+
+	// Print children vertically
+	for _, child := range node.Children {
+		printTreeVerticalForSync(child, currentBranch, prCache, true)
+	}
 }
 
 
