@@ -110,8 +110,6 @@ func showStack() error {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
-	fmt.Println("Stack structure:")
-	fmt.Println()
 	printStackTree(tree, "", true, currentBranch)
 
 	return nil
@@ -123,32 +121,31 @@ func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBra
 		return
 	}
 
-	marker := " "
+	// Flatten the tree into a vertical list
+	printStackTreeVertical(node, currentBranch, false)
+}
+
+func printStackTreeVertical(node *stack.TreeNode, currentBranch string, isPipe bool) {
+	if node == nil {
+		return
+	}
+
+	marker := ""
 	if node.Name == currentBranch {
-		marker = "*"
+		marker = " *"
 	}
 
-	branch := prefix
-	if prefix != "" {
-		if isLast {
-			branch += "└─ "
-		} else {
-			branch += "├─ "
-		}
+	// Print pipe if needed
+	if isPipe {
+		fmt.Println("  |")
 	}
 
-	fmt.Printf("%s%s%s\n", marker, branch, node.Name)
+	// Print current node
+	fmt.Printf(" %s%s\n", node.Name, marker)
 
-	childPrefix := prefix
-	if isLast {
-		childPrefix += "   "
-	} else {
-		childPrefix += "│  "
-	}
-
-	for i, child := range node.Children {
-		isLastChild := i == len(node.Children)-1
-		printStackTree(child, childPrefix, isLastChild, currentBranch)
+	// Print children vertically
+	for _, child := range node.Children {
+		printStackTreeVertical(child, currentBranch, true)
 	}
 }
 
