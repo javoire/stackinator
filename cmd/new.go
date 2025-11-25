@@ -63,7 +63,7 @@ func runNew(branchName string) error {
 	// If current branch has no parent, check if it's the base branch
 	// Otherwise use it as parent
 	parent := currentBranch
-	currentParent := git.GetConfig(fmt.Sprintf("branch.%s.stackParent", currentBranch))
+	currentParent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
 
 	// If we're not on a stack branch, use the base branch as parent
 	if currentParent == "" && currentBranch != stack.GetBaseBranch() {
@@ -79,7 +79,7 @@ func runNew(branchName string) error {
 	}
 
 	// Set parent in git config
-	configKey := fmt.Sprintf("branch.%s.stackParent", branchName)
+	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
 	if err := git.SetConfig(configKey, parent); err != nil {
 		return fmt.Errorf("failed to set parent config: %w", err)
 	}
@@ -87,14 +87,14 @@ func runNew(branchName string) error {
 	if !dryRun {
 		fmt.Printf("✓ Created branch %s with parent %s\n", branchName, parent)
 		fmt.Println()
-		
+
 		// Show the full stack
 		if err := showStack(); err != nil {
 			// Don't fail if we can't show the stack, just warn
 			fmt.Fprintf(os.Stderr, "Warning: failed to display stack: %v\n", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -104,16 +104,16 @@ func showStack() error {
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
-	
+
 	tree, err := stack.BuildStackTree()
 	if err != nil {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
-	
+
 	fmt.Println("Stack structure:")
 	fmt.Println()
 	printStackTree(tree, "", true, currentBranch)
-	
+
 	return nil
 }
 
@@ -122,7 +122,7 @@ func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBra
 	if node == nil {
 		return
 	}
-	
+
 	marker := " "
 	if node.Name == currentBranch {
 		marker = "*"
@@ -137,15 +137,13 @@ func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBra
 		}
 	}
 	
-	fmt.Printf("%s%s %s\n", marker, branch, node.Name)
+	fmt.Printf("%s%s%s\n", marker, branch, node.Name)
 	
 	childPrefix := prefix
-	if prefix != "" {
-		if isLast {
-			childPrefix += "   "
-		} else {
-			childPrefix += "│  "
-		}
+	if isLast {
+		childPrefix += "   "
+	} else {
+		childPrefix += "│  "
 	}
 	
 	for i, child := range node.Children {
