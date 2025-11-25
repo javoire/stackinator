@@ -24,10 +24,11 @@ This helps you visualize your stack and see which branches have PRs.`,
   stack status
 
   # Example output:
-  #   main
-  #   └─ feature-auth [PR #123: OPEN]
-  #      ├─ feature-auth-tests *
-  #      └─ feature-auth-docs`,
+  #  main
+  #   |
+  #  feature-auth [PR #123: OPEN]
+  #   |
+  #  feature-auth-tests *`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runStatus(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -62,9 +63,6 @@ func runStatus() error {
 		return nil
 	}
 
-	fmt.Println("Stack structure:")
-	fmt.Println()
-
 	// Fetch all PRs upfront for better performance
 	prCache, err := github.GetAllPRs()
 	if err != nil {
@@ -83,20 +81,19 @@ func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch s
 		return
 	}
 
-	// Determine the current branch marker
-	marker := " "
-	if node.Name == currentBranch {
-		marker = "*"
+	// Flatten the tree into a vertical list
+	printTreeVertical(node, currentBranch, prCache, false)
+}
+
+func printTreeVertical(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+	if node == nil {
+		return
 	}
 
-	// Print current node
-	branch := prefix
-	if prefix != "" {
-		if isLast {
-			branch += "└─ "
-		} else {
-			branch += "├─ "
-		}
+	// Determine the current branch marker
+	marker := ""
+	if node.Name == currentBranch {
+		marker = " *"
 	}
 
 	// Get PR info from cache
@@ -107,19 +104,17 @@ func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch s
 		}
 	}
 
-	fmt.Printf("%s%s%s%s\n", marker, branch, node.Name, prInfo)
-
-	// Print children
-	childPrefix := prefix
-	if isLast {
-		childPrefix += "   "
-	} else {
-		childPrefix += "│  "
+	// Print pipe if needed
+	if isPipe {
+		fmt.Println("  |")
 	}
 
-	for i, child := range node.Children {
-		isLastChild := i == len(node.Children)-1
-		printTree(child, childPrefix, isLastChild, currentBranch, prCache)
+	// Print current node
+	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
+
+	// Print children vertically
+	for _, child := range node.Children {
+		printTreeVertical(child, currentBranch, prCache, true)
 	}
 }
 

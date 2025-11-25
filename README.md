@@ -68,11 +68,11 @@ stack status
 Output:
 
 ```
-Stack structure:
-
-  main
-  └─ feature-1
-     └─ feature-2 *
+ main
+  |
+ feature-1
+  |
+ feature-2 *
 ```
 
 The `*` indicates your current branch.
@@ -228,10 +228,13 @@ stack new auth-logout
 # View structure
 stack status
 # Output:
-#   main
-#   └─ auth-system
-#      ├─ auth-login
-#      └─ auth-logout *
+#  main
+#   |
+#  auth-system
+#   |
+#  auth-login
+#   |
+#  auth-logout *
 
 # Create PRs
 git checkout auth-system
