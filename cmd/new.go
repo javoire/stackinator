@@ -44,15 +44,6 @@ will be used as the parent.`,
 }
 
 func runNew(branchName string, explicitParent string) error {
-	// Check if working tree is clean
-	clean, err := git.IsWorkingTreeClean()
-	if err != nil {
-		return fmt.Errorf("failed to check working tree status: %w", err)
-	}
-	if !clean {
-		return fmt.Errorf("working tree has uncommitted changes. Please commit or stash them first")
-	}
-
 	// Check if branch already exists
 	if git.BranchExists(branchName) {
 		return fmt.Errorf("branch %s already exists", branchName)
@@ -132,8 +123,8 @@ func showStack() error {
 		prCache = make(map[string]*github.PRInfo)
 	}
 
-	// Filter out branches with merged PRs from the tree
-	tree = filterMergedBranchesForNew(tree, prCache)
+	// Filter out branches with merged PRs from the tree (but keep current branch)
+	tree = filterMergedBranchesForNew(tree, prCache, currentBranch)
 
 	printStackTree(tree, "", true, currentBranch, prCache)
 
@@ -142,7 +133,8 @@ func showStack() error {
 
 // filterMergedBranchesForNew removes branches with merged PRs from the tree,
 // but only if they don't have children (to keep the stack structure visible)
-func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github.PRInfo) *stack.TreeNode {
+// and they are not the current branch (always show where user is)
+func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github.PRInfo, currentBranch string) *stack.TreeNode {
 	if node == nil {
 		return nil
 	}
@@ -151,14 +143,17 @@ func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github
 	var filteredChildren []*stack.TreeNode
 	for _, child := range node.Children {
 		// Recurse first to process all descendants
-		filtered := filterMergedBranchesForNew(child, prCache)
+		filtered := filterMergedBranchesForNew(child, prCache, currentBranch)
 
 		// Only filter out merged branches if they have no children
-		// (i.e., they're leaf nodes)
+		// (i.e., they're leaf nodes) AND they're not the current branch
 		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
-			// If this merged branch still has children after filtering, keep it
-			// so the stack structure remains visible
-			if filtered != nil && len(filtered.Children) > 0 {
+			// Always keep the current branch, even if merged
+			if child.Name == currentBranch {
+				filteredChildren = append(filteredChildren, filtered)
+			} else if filtered != nil && len(filtered.Children) > 0 {
+				// If this merged branch still has children after filtering, keep it
+				// so the stack structure remains visible
 				filteredChildren = append(filteredChildren, filtered)
 			}
 			// Otherwise skip this merged leaf branch
