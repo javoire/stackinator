@@ -96,7 +96,7 @@ func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch s
 	prInfo := ""
 	if node.Name != stack.GetBaseBranch() {
 		if pr, err := github.GetPRForBranch(node.Name); err == nil && pr != nil {
-			prInfo = fmt.Sprintf(" [PR #%d: %s]", pr.Number, pr.State)
+			prInfo = fmt.Sprintf(" [%s]", pr.URL)
 		}
 	}
 
