@@ -59,6 +59,7 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(parentCmd)
+	rootCmd.AddCommand(renameCmd)
 }
 
 // Execute runs the root command

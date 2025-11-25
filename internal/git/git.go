@@ -146,6 +146,16 @@ func CheckoutBranch(name string) error {
 	return err
 }
 
+// RenameBranch renames a branch (must be on that branch)
+func RenameBranch(oldName, newName string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git branch -m %s %s\n", oldName, newName)
+		return nil
+	}
+	_, err := runCmd("branch", "-m", oldName, newName)
+	return err
+}
+
 // Rebase rebases the current branch onto the specified base
 func Rebase(onto string) error {
 	if DryRun {
@@ -156,13 +166,36 @@ func Rebase(onto string) error {
 	return err
 }
 
+// FetchBranch fetches a specific branch from origin to update tracking info
+func FetchBranch(branch string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git fetch origin %s\n", branch)
+		return nil
+	}
+	_, err := runCmd("fetch", "origin", branch)
+	return err
+}
+
 // Push pushes a branch to origin
-func Push(branch string, force bool) error {
+func Push(branch string, forceWithLease bool) error {
 	args := []string{"push"}
-	if force {
+	if forceWithLease {
 		args = append(args, "--force-with-lease")
 	}
 	args = append(args, "origin", branch)
+
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git %s\n", strings.Join(args, " "))
+		return nil
+	}
+
+	_, err := runCmd(args...)
+	return err
+}
+
+// ForcePush force pushes a branch to origin (bypasses --force-with-lease safety)
+func ForcePush(branch string) error {
+	args := []string{"push", "--force", "origin", branch}
 
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git %s\n", strings.Join(args, " "))
@@ -196,6 +229,43 @@ func Fetch() error {
 func BranchExists(name string) bool {
 	output := runCmdMayFail("rev-parse", "--verify", "refs/heads/"+name)
 	return output != ""
+}
+
+// RemoteBranchExists checks if a branch exists on origin
+func RemoteBranchExists(name string) bool {
+	output := runCmdMayFail("rev-parse", "--verify", "refs/remotes/origin/"+name)
+	return output != ""
+}
+
+// AbortRebase aborts an in-progress rebase
+func AbortRebase() error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git rebase --abort\n")
+		return nil
+	}
+	_, err := runCmd("rebase", "--abort")
+	return err
+}
+
+// ResetToRemote resets the current branch to match the remote branch exactly
+func ResetToRemote(branch string) error {
+	remoteBranch := "origin/" + branch
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git reset --hard %s\n", remoteBranch)
+		return nil
+	}
+	_, err := runCmd("reset", "--hard", remoteBranch)
+	return err
+}
+
+// GetMergeBase returns the common ancestor of two branches
+func GetMergeBase(branch1, branch2 string) (string, error) {
+	return runCmd("merge-base", branch1, branch2)
+}
+
+// GetCommitHash returns the commit hash of a ref
+func GetCommitHash(ref string) (string, error) {
+	return runCmd("rev-parse", ref)
 }
 
 // Stash stashes the current changes
@@ -240,4 +310,99 @@ func GetDefaultBranch() string {
 
 	// Final fallback
 	return "main"
+}
+
+// GetWorktreeBranches returns a map of branch names to their worktree paths (resolved to canonical paths)
+func GetWorktreeBranches() (map[string]string, error) {
+	output := runCmdMayFail("worktree", "list", "--porcelain")
+	if output == "" {
+		return make(map[string]string), nil
+	}
+
+	worktrees := make(map[string]string)
+	var currentPath string
+
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "worktree ") {
+			currentPath = strings.TrimPrefix(line, "worktree ")
+		} else if strings.HasPrefix(line, "branch ") && currentPath != "" {
+			branch := strings.TrimPrefix(line, "branch refs/heads/")
+			// Resolve symlinks to get canonical path for accurate comparison
+			canonicalPath, err := resolveSymlinks(currentPath)
+			if err != nil {
+				// If we can't resolve, use the original path
+				canonicalPath = currentPath
+			}
+			worktrees[branch] = canonicalPath
+			currentPath = "" // Reset for next worktree
+		}
+	}
+
+	return worktrees, nil
+}
+
+// GetCurrentWorktreePath returns the absolute path of the current worktree
+func GetCurrentWorktreePath() (string, error) {
+	// Use git rev-parse to get the absolute path to the top-level of the current worktree
+	path, err := runCmd("rev-parse", "--path-format=absolute", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	// Resolve symlinks to get the canonical path for accurate comparison
+	return resolveSymlinks(path)
+}
+
+// resolveSymlinks resolves any symlinks in a path to get the canonical path
+func resolveSymlinks(path string) (string, error) {
+	// Use readlink -f to resolve all symlinks (this is the canonical path)
+	// Note: This uses the system readlink command, not a git command
+	cmd := exec.Command("readlink", "-f", path)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		// If readlink fails (e.g., on macOS where -f isn't available),
+		// try with realpath instead
+		cmd = exec.Command("realpath", path)
+		stdout.Reset()
+		stderr.Reset()
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			// If both fail, return the original path
+			return path, nil
+		}
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// IsCommitsBehind checks if the 'branch' is behind 'base' (i.e., base has commits that branch doesn't)
+func IsCommitsBehind(branch, base string) (bool, error) {
+	// First fetch to ensure we have the latest remote refs
+	_ = Fetch()
+
+	// Always use origin/ prefix for the base since we're comparing against what's on the remote
+	// (which is what the PR is based on)
+	baseBranch := "origin/" + base
+
+	// Get commit count: ahead...behind
+	// Format: "ahead<tab>behind"
+	output, err := runCmd("rev-list", "--left-right", "--count", branch+"..."+baseBranch)
+	if err != nil {
+		return false, err
+	}
+
+	parts := strings.Fields(output)
+	if len(parts) != 2 {
+		return false, fmt.Errorf("unexpected output from git rev-list: %s", output)
+	}
+
+	// parts[0] = ahead count, parts[1] = behind count
+	// We only care if behind count > 0
+	return parts[1] != "0", nil
 }
