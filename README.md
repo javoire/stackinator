@@ -29,9 +29,12 @@ Or clone and build locally:
 ```bash
 git clone https://github.com/javoire/stackinator.git
 cd stackinator
-go build -o stack
-# Move to your PATH, e.g.:
-sudo mv stack /usr/local/bin/
+
+# Quick install (builds and symlinks to ~/bin)
+./scripts/install
+
+# Or build manually
+./scripts/build
 ```
 
 ## Quick Start
@@ -189,7 +192,6 @@ Stackinator will:
 - ✅ Update PR base branches when stack changes
 - ✅ Detect when parent PRs are merged
 - ✅ Show PR status in `stack status`
-- ❌ Will NOT create PRs automatically
 
 ## Configuration
 
@@ -290,7 +292,25 @@ git config --unset branch.my-branch.stackParent
 
 ## Development
 
-### Build
+### Scripts
+
+The project includes several convenience scripts in the `scripts/` directory:
+
+```bash
+# Build the binary
+./scripts/build
+
+# Build and install (symlink to ~/bin)
+./scripts/install
+
+# Run tests
+./scripts/test
+
+# Clean build artifacts
+./scripts/clean
+```
+
+### Manual Build
 
 ```bash
 go build -o stack
