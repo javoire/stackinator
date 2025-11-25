@@ -202,7 +202,6 @@ func runSync() error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
 	}
 
-	fmt.Println("✓ Sync complete!")
 	fmt.Println()
 
 	// Display the updated stack status
@@ -210,6 +209,9 @@ func runSync() error {
 		// Don't fail if we can't display status, just warn
 		fmt.Fprintf(os.Stderr, "Warning: failed to display stack status: %v\n", err)
 	}
+
+	fmt.Println()
+	fmt.Println("✓ Sync complete!")
 
 	return nil
 }
@@ -253,7 +255,7 @@ func filterMergedBranchesForSync(node *stack.TreeNode, prCache map[string]*githu
 	for _, child := range node.Children {
 		// Recurse first to process all descendants
 		filtered := filterMergedBranchesForSync(child, prCache)
-		
+
 		// Only filter out merged branches if they have no children
 		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
 			// If this merged branch still has children after filtering, keep it
