@@ -20,6 +20,14 @@ var statusCmd = &cobra.Command{
   - PR status for each branch (if available)
 
 This helps you visualize your stack and see which branches have PRs.`,
+	Example: `  # Show stack structure
+  stack status
+
+  # Example output:
+  #   main
+  #   └─ feature-auth [PR #123: OPEN]
+  #      ├─ feature-auth-tests *
+  #      └─ feature-auth-docs`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runStatus(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

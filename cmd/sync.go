@@ -23,6 +23,18 @@ This ensures your stack is up-to-date and all PRs have the correct base branches
 
 If a parent PR has been merged, the child branches will be rebased to point to
 the merged parent's parent.`,
+	Example: `  # Sync all branches and update PRs
+  stack sync
+
+  # Preview what would happen
+  stack sync --dry-run
+
+  # Show detailed git/gh commands
+  stack sync --verbose
+
+  # Common workflow after updating main
+  git checkout main && git pull
+  stack sync`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runSync(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

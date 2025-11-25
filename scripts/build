@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -e
+
+# Build script for stackinator
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
+echo "Building stackinator..."
+go build -o stack
+
+echo "✓ Build complete: ./stack"
+

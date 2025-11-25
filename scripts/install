@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -e
+
+# Install script for stackinator
+# Creates a symlink in ~/bin
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
+BIN_DIR="$HOME/bin"
+BINARY_NAME="stack"
+BINARY_PATH="$PROJECT_ROOT/$BINARY_NAME"
+
+# Build first
+echo "Building $BINARY_NAME..."
+./scripts/build
+
+# Create ~/bin if it doesn't exist
+if [ ! -d "$BIN_DIR" ]; then
+  echo "Creating $BIN_DIR directory..."
+  mkdir -p "$BIN_DIR"
+fi
+
+# Create symlink
+echo "Creating symlink: $BIN_DIR/$BINARY_NAME -> $BINARY_PATH"
+ln -sf "$BINARY_PATH" "$BIN_DIR/$BINARY_NAME"
+
+echo "✓ Installed successfully!"
+echo ""
+echo "Run 'stack --help' to get started"
+
+# Check if ~/bin is in PATH
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+  echo ""
+  echo "⚠️  Warning: $BIN_DIR is not in your PATH"
+  echo "   Add this to your ~/.zshrc or ~/.profile:"
+  echo "   export PATH=\"\$HOME/bin:\$PATH\""
+fi
+

@@ -21,6 +21,20 @@ var rootCmd = &cobra.Command{
 
 Stack branches are tracked using git config, where each branch stores its parent.
 The tool helps you create, navigate, and sync stacked branches with minimal overhead.`,
+	Example: `  # Create a new feature branch
+  stack new feature-auth
+
+  # View your stack structure
+  stack status
+
+  # Sync all branches and update PRs
+  stack sync
+
+  # Preview sync without executing
+  stack sync --dry-run
+
+  # See detailed output
+  stack sync --verbose`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Set global flags
 		git.DryRun = dryRun

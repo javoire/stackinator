@@ -19,6 +19,15 @@ will be stored in git config (branch.<name>.stackParent).
 
 If you're not currently on a stack branch, the base branch (default: main) will be
 used as the parent.`,
+	Example: `  # Create first branch from main
+  git checkout main
+  stack new feature-auth
+
+  # Create second branch stacked on feature-auth
+  stack new feature-auth-tests
+
+  # Preview without creating
+  stack new feature-xyz --dry-run`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		branchName := args[0]
