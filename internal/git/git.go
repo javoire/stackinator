@@ -157,3 +157,4 @@ func BranchExists(name string) bool {
 	return output != ""
 }
 
+

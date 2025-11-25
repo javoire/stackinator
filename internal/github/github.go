@@ -97,3 +97,4 @@ func IsPRMerged(prNumber int) (bool, error) {
 	return data.State == "MERGED", nil
 }
 
+
