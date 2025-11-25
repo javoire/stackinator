@@ -383,8 +383,8 @@ func resolveSymlinks(path string) (string, error) {
 
 // IsCommitsBehind checks if the 'branch' is behind 'base' (i.e., base has commits that branch doesn't)
 func IsCommitsBehind(branch, base string) (bool, error) {
-	// First fetch to ensure we have the latest remote refs
-	_ = Fetch()
+	// NOTE: Caller should fetch first to ensure latest remote refs
+	// We don't fetch here to avoid multiple fetches in loops
 
 	// Always use origin/ prefix for the base since we're comparing against what's on the remote
 	// (which is what the PR is based on)
