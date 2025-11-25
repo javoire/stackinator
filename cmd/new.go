@@ -127,7 +127,7 @@ func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBra
 	if node.Name == currentBranch {
 		marker = "*"
 	}
-	
+
 	branch := prefix
 	if prefix != "" {
 		if isLast {
@@ -136,16 +136,16 @@ func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBra
 			branch += "├─ "
 		}
 	}
-	
+
 	fmt.Printf("%s%s%s\n", marker, branch, node.Name)
-	
+
 	childPrefix := prefix
 	if isLast {
 		childPrefix += "   "
 	} else {
 		childPrefix += "│  "
 	}
-	
+
 	for i, child := range node.Children {
 		isLastChild := i == len(node.Children)-1
 		printStackTree(child, childPrefix, isLastChild, currentBranch)
