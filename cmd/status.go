@@ -85,22 +85,30 @@ func runStatus() error {
 	return nil
 }
 
-// filterMergedBranches removes branches with merged PRs from the tree
+// filterMergedBranches removes branches with merged PRs from the tree,
+// but only if they don't have children (to keep the stack structure visible)
 func filterMergedBranches(node *stack.TreeNode, prCache map[string]*github.PRInfo) *stack.TreeNode {
 	if node == nil {
 		return nil
 	}
 
-	// Filter children recursively
+	// Filter children recursively first
 	var filteredChildren []*stack.TreeNode
 	for _, child := range node.Children {
-		// Check if this child has a merged PR
+		// Recurse first to process all descendants
+		filtered := filterMergedBranches(child, prCache)
+		
+		// Only filter out merged branches if they have no children
+		// (i.e., they're leaf nodes)
 		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
-			// Skip this merged branch entirely (its children were already reparented during sync)
-			continue
+			// If this merged branch still has children after filtering, keep it
+			// so the stack structure remains visible
+			if filtered != nil && len(filtered.Children) > 0 {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+			// Otherwise skip this merged leaf branch
 		} else {
-			// Keep this branch and recurse
-			filtered := filterMergedBranches(child, prCache)
+			// Not merged, keep it
 			if filtered != nil {
 				filteredChildren = append(filteredChildren, filtered)
 			}
@@ -196,6 +204,10 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 	if len(mergedBranches) > 0 && len(issues) == 0 {
 		fmt.Println()
 		fmt.Printf("✓ Stack is synced. Merged branches can be cleaned up: %s\n", strings.Join(mergedBranches, ", "))
+	} else if len(mergedBranches) == 0 && len(issues) == 0 {
+		// Everything is perfectly synced
+		fmt.Println()
+		fmt.Println("✓ Stack is perfectly synced! All branches are up to date.")
 	}
 
 	return nil
