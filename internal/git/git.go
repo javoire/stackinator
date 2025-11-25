@@ -75,6 +75,37 @@ func GetConfig(key string) string {
 	return runCmdMayFail("config", "--get", key)
 }
 
+// GetAllStackParents fetches all stack parent configs in one call (more efficient)
+func GetAllStackParents() (map[string]string, error) {
+	output, err := runCmd("config", "--get-regexp", "^branch\\..*\\.stackparent$")
+	if err != nil {
+		// No stack parents configured
+		return make(map[string]string), nil
+	}
+
+	parents := make(map[string]string)
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) != 2 {
+			continue
+		}
+		// Extract branch name from "branch.<name>.stackparent"
+		configKey := parts[0]
+		parent := parts[1]
+
+		// Remove "branch." prefix and ".stackparent" suffix
+		if strings.HasPrefix(configKey, "branch.") && strings.HasSuffix(configKey, ".stackparent") {
+			branchName := configKey[7 : len(configKey)-12]
+			parents[branchName] = parent
+		}
+	}
+
+	return parents, nil
+}
+
 // SetConfig writes a git config value
 func SetConfig(key, value string) error {
 	if DryRun {
@@ -187,4 +218,26 @@ func StashPop() error {
 	return err
 }
 
+// GetDefaultBranch attempts to detect the repository's default branch
+// by checking the remote HEAD or falling back to common defaults
+func GetDefaultBranch() string {
+	// Try to get the remote's default branch
+	output := runCmdMayFail("symbolic-ref", "refs/remotes/origin/HEAD")
+	if output != "" {
+		// Output format: refs/remotes/origin/master
+		parts := strings.Split(output, "/")
+		if len(parts) > 0 {
+			return parts[len(parts)-1]
+		}
+	}
 
+	// Fall back to checking which common branch exists
+	for _, branch := range []string{"master", "main"} {
+		if BranchExists(branch) {
+			return branch
+		}
+	}
+
+	// Final fallback
+	return "main"
+}
