@@ -69,9 +69,12 @@ func runSync() error {
 		fmt.Println()
 	}
 
-	// Ensure stash is popped at the end
+	// Track if we complete successfully
+	success := false
+
+	// Ensure stash is popped on error (if we don't complete successfully)
 	defer func() {
-		if stashed {
+		if stashed && !success {
 			fmt.Println("\nRestoring stashed changes...")
 			if err := git.StashPop(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
@@ -208,6 +211,19 @@ func runSync() error {
 	if err := displayStatusAfterSync(); err != nil {
 		// Don't fail if we can't display status, just warn
 		fmt.Fprintf(os.Stderr, "Warning: failed to display stack status: %v\n", err)
+	}
+
+	// Mark as successful so defer doesn't restore stash
+	success = true
+
+	// Restore stashed changes before success message
+	if stashed {
+		fmt.Println()
+		fmt.Println("Restoring stashed changes...")
+		if err := git.StashPop(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
+		}
 	}
 
 	fmt.Println()
