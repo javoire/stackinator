@@ -71,6 +71,42 @@ func GetPRForBranch(branch string) (*PRInfo, error) {
 	}, nil
 }
 
+// GetAllPRs fetches all PRs for the repository in a single call
+func GetAllPRs() (map[string]*PRInfo, error) {
+	// Fetch all PRs (open, closed, and merged) in one call
+	output, err := runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url", "--limit", "1000")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list PRs: %w", err)
+	}
+
+	var prs []struct {
+		Number      int    `json:"number"`
+		State       string `json:"state"`
+		HeadRefName string `json:"headRefName"`
+		BaseRefName string `json:"baseRefName"`
+		Title       string `json:"title"`
+		URL         string `json:"url"`
+	}
+
+	if err := json.Unmarshal([]byte(output), &prs); err != nil {
+		return nil, fmt.Errorf("failed to parse PR list: %w", err)
+	}
+
+	// Create a map of branch name -> PR info
+	prMap := make(map[string]*PRInfo)
+	for _, pr := range prs {
+		prMap[pr.HeadRefName] = &PRInfo{
+			Number: pr.Number,
+			State:  pr.State,
+			Base:   pr.BaseRefName,
+			Title:  pr.Title,
+			URL:    pr.URL,
+		}
+	}
+
+	return prMap, nil
+}
+
 // UpdatePRBase updates the base branch of a PR
 func UpdatePRBase(prNumber int, newBase string) error {
 	if DryRun {

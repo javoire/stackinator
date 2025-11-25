@@ -87,32 +87,36 @@ func runSync() error {
 
 	fmt.Printf("Processing %d branch(es)...\n\n", len(sorted))
 
+	// Fetch all PRs upfront for better performance
+	prCache, err := github.GetAllPRs()
+	if err != nil {
+		// If fetching PRs fails, fall back to individual fetches
+		prCache = make(map[string]*github.PRInfo)
+	}
+
 	// Process each branch
 	for _, branch := range sorted {
 		fmt.Printf("Processing %s...\n", branch.Name)
 
 		// Check if parent PR is merged
 		parentUpdated := false
-		parentPR, err := github.GetPRForBranch(branch.Parent)
-		if err == nil && parentPR != nil {
-			merged, err := github.IsPRMerged(parentPR.Number)
-			if err == nil && merged {
-				fmt.Printf("  Parent PR #%d has been merged\n", parentPR.Number)
+		parentPR, _ := prCache[branch.Parent]
+		if parentPR != nil && parentPR.State == "MERGED" {
+			fmt.Printf("  Parent PR #%d has been merged\n", parentPR.Number)
 
-				// Update parent to grandparent
-				grandparent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", branch.Parent))
-				if grandparent == "" {
-					grandparent = stack.GetBaseBranch()
-				}
+			// Update parent to grandparent
+			grandparent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", branch.Parent))
+			if grandparent == "" {
+				grandparent = stack.GetBaseBranch()
+			}
 
-				fmt.Printf("  Updating parent from %s to %s\n", branch.Parent, grandparent)
-				configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
-				if err := git.SetConfig(configKey, grandparent); err != nil {
-					fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
-				} else {
-					branch.Parent = grandparent
-					parentUpdated = true
-				}
+			fmt.Printf("  Updating parent from %s to %s\n", branch.Parent, grandparent)
+			configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
+			if err := git.SetConfig(configKey, grandparent); err != nil {
+				fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
+			} else {
+				branch.Parent = grandparent
+				parentUpdated = true
 			}
 		}
 
@@ -137,8 +141,8 @@ func runSync() error {
 		}
 
 		// Check if PR exists and update base if needed
-		pr, err := github.GetPRForBranch(branch.Name)
-		if err == nil && pr != nil {
+		pr, _ := prCache[branch.Name]
+		if pr != nil {
 			if pr.Base != branch.Parent || parentUpdated {
 				fmt.Printf("  Updating PR #%d base from %s to %s...\n", pr.Number, pr.Base, branch.Parent)
 				if err := github.UpdatePRBase(pr.Number, branch.Parent); err != nil {
