@@ -96,20 +96,18 @@ func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch s
 	prInfo := ""
 	if node.Name != stack.GetBaseBranch() {
 		if pr, err := github.GetPRForBranch(node.Name); err == nil && pr != nil {
-			prInfo = fmt.Sprintf(" [PR #%d: %s]", pr.Number, pr.State)
+			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
 		}
 	}
 
-	fmt.Printf("%s%s %s%s\n", marker, branch, node.Name, prInfo)
+	fmt.Printf("%s%s%s%s\n", marker, branch, node.Name, prInfo)
 
 	// Print children
 	childPrefix := prefix
-	if prefix != "" {
-		if isLast {
-			childPrefix += "   "
-		} else {
-			childPrefix += "│  "
-		}
+	if isLast {
+		childPrefix += "   "
+	} else {
+		childPrefix += "│  "
 	}
 
 	for i, child := range node.Children {

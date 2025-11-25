@@ -28,4 +28,7 @@ stackinator
 # OS
 .DS_Store
 
+# Test repositories
+tests/
+
 
