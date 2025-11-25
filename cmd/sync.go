@@ -7,6 +7,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
+	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
@@ -98,8 +99,9 @@ func runSync() error {
 	fmt.Println()
 
 	// Fetch from origin
-	fmt.Println("Fetching from origin...")
-	if err := git.Fetch(); err != nil {
+	if err := spinner.WrapWithSuccess("Fetching from origin...", "Fetched from origin", func() error {
+		return git.Fetch()
+	}); err != nil {
 		return fmt.Errorf("failed to fetch: %w", err)
 	}
 
@@ -175,9 +177,13 @@ func runSync() error {
 	fmt.Printf("Processing %d branch(es)...\n\n", len(sorted))
 
 	// Fetch all PRs upfront for better performance
-	prCache, err := github.GetAllPRs()
-	if err != nil {
-		// If fetching PRs fails, fall back to individual fetches
+	var prCache map[string]*github.PRInfo
+	if err := spinner.Wrap("Fetching PR information...", func() error {
+		var err error
+		prCache, err = github.GetAllPRs()
+		return err
+	}); err != nil {
+		// If fetching PRs fails, fall back to empty cache
 		prCache = make(map[string]*github.PRInfo)
 	}
 
@@ -301,44 +307,50 @@ func runSync() error {
 		}
 
 		// Rebase onto parent
-		fmt.Printf("  Rebasing onto %s...\n", rebaseTarget)
-		if err := git.Rebase(rebaseTarget); err != nil {
-			fmt.Fprintf(os.Stderr, "  Error: failed to rebase: %v\n", err)
+		if err := spinner.WrapWithSuccess(
+			fmt.Sprintf("  Rebasing onto %s...", rebaseTarget),
+			fmt.Sprintf("  Rebased onto %s", rebaseTarget),
+			func() error {
+				return git.Rebase(rebaseTarget)
+			},
+		); err != nil {
 			fmt.Fprintf(os.Stderr, "  Please resolve conflicts and run 'git rebase --continue', then run 'stack sync' again\n")
 			return err
 		}
 
 		// Push to origin - FAIL FAST if this fails
-		fmt.Printf("  Pushing to origin...\n")
-
-		var pushErr error
-		if syncForce {
-			// Use regular --force (bypasses --force-with-lease safety checks)
-			if git.Verbose {
-				fmt.Printf("  Using --force (bypassing safety checks)\n")
-			}
-			pushErr = git.ForcePush(branch.Name)
-		} else {
-			// Fetch one more time right before push to ensure --force-with-lease has fresh tracking info
-			// This prevents "stale info" errors if the remote was updated during our rebase
-			if git.RemoteBranchExists(branch.Name) {
-				if git.Verbose {
-					fmt.Printf("  Refreshing remote tracking ref before push...\n")
-				}
-				if err := git.FetchBranch(branch.Name); err != nil {
-					// Non-fatal, continue with push
+		pushErr := spinner.WrapWithSuccess(
+			"  Pushing to origin...",
+			"  Pushed to origin",
+			func() error {
+				if syncForce {
+					// Use regular --force (bypasses --force-with-lease safety checks)
 					if git.Verbose {
-						fmt.Fprintf(os.Stderr, "  Note: could not refresh tracking ref: %v\n", err)
+						fmt.Printf("  Using --force (bypassing safety checks)\n")
+					}
+					return git.ForcePush(branch.Name)
+				}
+
+				// Fetch one more time right before push to ensure --force-with-lease has fresh tracking info
+				// This prevents "stale info" errors if the remote was updated during our rebase
+				if git.RemoteBranchExists(branch.Name) {
+					if git.Verbose {
+						fmt.Printf("  Refreshing remote tracking ref before push...\n")
+					}
+					if err := git.FetchBranch(branch.Name); err != nil {
+						// Non-fatal, continue with push
+						if git.Verbose {
+							fmt.Fprintf(os.Stderr, "  Note: could not refresh tracking ref: %v\n", err)
+						}
 					}
 				}
-			}
 
-			// Use --force-with-lease (safe force push)
-			pushErr = git.Push(branch.Name, true)
-		}
+				// Use --force-with-lease (safe force push)
+				return git.Push(branch.Name, true)
+			},
+		)
 
 		if pushErr != nil {
-			fmt.Fprintf(os.Stderr, "\n  Error: failed to push %s: %v\n", branch.Name, pushErr)
 			if !syncForce {
 				fmt.Fprintf(os.Stderr, "\nPossible causes:\n")
 				fmt.Fprintf(os.Stderr, "  1. Remote branch was updated by someone else - try running 'stack sync' again\n")
@@ -413,10 +425,15 @@ func displayStatusAfterSync() error {
 	}
 
 	// Fetch all PRs for display
-	prCache, err := github.GetAllPRs()
-	if err != nil {
-		prCache = make(map[string]*github.PRInfo)
-	}
+	var prCache map[string]*github.PRInfo
+	spinner.Wrap("Fetching PR information...", func() error {
+		var err error
+		prCache, err = github.GetAllPRs()
+		if err != nil {
+			prCache = make(map[string]*github.PRInfo)
+		}
+		return nil
+	})
 
 	// Filter out branches with merged PRs (leaf nodes only)
 	tree = filterMergedBranchesForSync(tree, prCache)

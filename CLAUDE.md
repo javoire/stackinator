@@ -44,6 +44,7 @@ go test ./...
 - **`internal/git/`**: Git operations wrapper with dry-run and verbose support
 - **`internal/github/`**: GitHub CLI (`gh`) wrapper for PR operations
 - **`internal/stack/`**: Core stack logic including topological sort and tree building
+- **`internal/spinner/`**: Loading spinner for slow operations (disabled in verbose mode)
 
 ### Key Algorithms
 
@@ -71,6 +72,10 @@ Both `git` and `github` packages support:
 
 - `DryRun`: Print what would happen without executing mutations
 - `Verbose`: Show all git/gh commands being executed
+
+The `spinner` package also respects the verbose flag:
+
+- `Enabled`: When false (verbose mode), spinners are hidden to avoid visual conflicts with command output
 
 These are set via persistent flags on root command.
 
