@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
@@ -22,7 +23,9 @@ var syncCmd = &cobra.Command{
 This ensures your stack is up-to-date and all PRs have the correct base branches.
 
 If a parent PR has been merged, the child branches will be rebased to point to
-the merged parent's parent.`,
+the merged parent's parent.
+
+Uncommitted changes are automatically stashed and reapplied (using --autostash).`,
 	Example: `  # Sync all branches and update PRs
   stack sync
 
@@ -50,14 +53,35 @@ func runSync() error {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// Check if working tree is clean
+	// Check if working tree is clean and stash if needed
 	clean, err := git.IsWorkingTreeClean()
 	if err != nil {
 		return fmt.Errorf("failed to check working tree status: %w", err)
 	}
+
+	stashed := false
 	if !clean {
-		return fmt.Errorf("working tree has uncommitted changes. Please commit or stash them first")
+		fmt.Println("Stashing uncommitted changes...")
+		if err := git.Stash("stack-sync-autostash"); err != nil {
+			return fmt.Errorf("failed to stash changes: %w", err)
+		}
+		stashed = true
+		fmt.Println()
 	}
+
+	// Track if we complete successfully
+	success := false
+
+	// Ensure stash is popped on error (if we don't complete successfully)
+	defer func() {
+		if stashed && !success {
+			fmt.Println("\nRestoring stashed changes...")
+			if err := git.StashPop(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
+			}
+		}
+	}()
 
 	fmt.Println("Syncing stack...")
 	fmt.Println()
@@ -95,8 +119,24 @@ func runSync() error {
 	}
 
 	// Process each branch
-	for _, branch := range sorted {
-		fmt.Printf("Processing %s...\n", branch.Name)
+	for i, branch := range sorted {
+		progress := fmt.Sprintf("(%d/%d)", i+1, len(sorted))
+
+		// Check if this branch has a merged PR - if so, remove from stack tracking
+		if pr, exists := prCache[branch.Name]; exists && pr.State == "MERGED" {
+			fmt.Printf("%s Skipping %s (PR #%d is merged)...\n", progress, branch.Name, pr.Number)
+			fmt.Printf("  Removing from stack tracking...\n")
+			configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
+			if err := git.UnsetConfig(configKey); err != nil {
+				fmt.Fprintf(os.Stderr, "  Warning: failed to remove stack config: %v\n", err)
+			} else {
+				fmt.Printf("  ✓ Removed. You can delete this branch with: git branch -d %s\n", branch.Name)
+			}
+			fmt.Println()
+			continue
+		}
+
+		fmt.Printf("%s Processing %s...\n", progress, branch.Name)
 
 		// Check if parent PR is merged
 		parentUpdated := false
@@ -122,8 +162,7 @@ func runSync() error {
 
 		// Checkout the branch
 		if err := git.CheckoutBranch(branch.Name); err != nil {
-			fmt.Fprintf(os.Stderr, "  Warning: failed to checkout %s: %v\n", branch.Name, err)
-			continue
+			return fmt.Errorf("failed to checkout %s: %w", branch.Name, err)
 		}
 
 		// Rebase onto parent
@@ -166,9 +205,131 @@ func runSync() error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
 	}
 
+	fmt.Println()
+
+	// Display the updated stack status
+	if err := displayStatusAfterSync(); err != nil {
+		// Don't fail if we can't display status, just warn
+		fmt.Fprintf(os.Stderr, "Warning: failed to display stack status: %v\n", err)
+	}
+
+	// Mark as successful so defer doesn't restore stash
+	success = true
+
+	// Restore stashed changes before success message
+	if stashed {
+		fmt.Println()
+		fmt.Println("Restoring stashed changes...")
+		if err := git.StashPop(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
+		}
+	}
+
+	fmt.Println()
 	fmt.Println("✓ Sync complete!")
 
 	return nil
+}
+
+// displayStatusAfterSync shows the stack tree after a successful sync
+func displayStatusAfterSync() error {
+	currentBranch, err := git.GetCurrentBranch()
+	if err != nil {
+		return fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	tree, err := stack.BuildStackTree()
+	if err != nil {
+		return fmt.Errorf("failed to build stack tree: %w", err)
+	}
+
+	// Fetch all PRs for display
+	prCache, err := github.GetAllPRs()
+	if err != nil {
+		prCache = make(map[string]*github.PRInfo)
+	}
+
+	// Filter out branches with merged PRs (leaf nodes only)
+	tree = filterMergedBranchesForSync(tree, prCache)
+
+	// Print the tree
+	printTreeForSync(tree, currentBranch, prCache)
+
+	return nil
+}
+
+// filterMergedBranchesForSync removes branches with merged PRs from the tree,
+// but only if they don't have children (to keep the stack structure visible)
+func filterMergedBranchesForSync(node *stack.TreeNode, prCache map[string]*github.PRInfo) *stack.TreeNode {
+	if node == nil {
+		return nil
+	}
+
+	// Filter children recursively first
+	var filteredChildren []*stack.TreeNode
+	for _, child := range node.Children {
+		// Recurse first to process all descendants
+		filtered := filterMergedBranchesForSync(child, prCache)
+
+		// Only filter out merged branches if they have no children
+		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
+			// If this merged branch still has children after filtering, keep it
+			if filtered != nil && len(filtered.Children) > 0 {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+			// Otherwise skip this merged leaf branch
+		} else {
+			// Not merged, keep it
+			if filtered != nil {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+		}
+	}
+
+	node.Children = filteredChildren
+	return node
+}
+
+// printTreeForSync prints the stack tree after sync
+func printTreeForSync(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo) {
+	if node == nil {
+		return
+	}
+	printTreeVerticalForSync(node, currentBranch, prCache, false)
+}
+
+func printTreeVerticalForSync(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+	if node == nil {
+		return
+	}
+
+	// Determine the current branch marker
+	marker := ""
+	if node.Name == currentBranch {
+		marker = " *"
+	}
+
+	// Get PR info from cache
+	prInfo := ""
+	if node.Name != stack.GetBaseBranch() {
+		if pr, exists := prCache[node.Name]; exists {
+			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
+		}
+	}
+
+	// Print pipe if needed
+	if isPipe {
+		fmt.Println("  |")
+	}
+
+	// Print current node
+	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
+
+	// Print children vertically
+	for _, child := range node.Children {
+		printTreeVerticalForSync(child, currentBranch, prCache, true)
+	}
 }
 
 

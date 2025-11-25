@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/javoire/stackinator/internal/git"
+	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
@@ -110,45 +112,94 @@ func showStack() error {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
-	fmt.Println("Stack structure:")
-	fmt.Println()
-	printStackTree(tree, "", true, currentBranch)
+	// Fetch all PRs upfront for better performance
+	prCache, err := github.GetAllPRs()
+	if err != nil {
+		// If fetching PRs fails, just continue without PR info
+		prCache = make(map[string]*github.PRInfo)
+	}
+
+	// Filter out branches with merged PRs from the tree
+	tree = filterMergedBranchesForNew(tree, prCache)
+
+	printStackTree(tree, "", true, currentBranch, prCache)
 
 	return nil
 }
 
+// filterMergedBranchesForNew removes branches with merged PRs from the tree,
+// but only if they don't have children (to keep the stack structure visible)
+func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github.PRInfo) *stack.TreeNode {
+	if node == nil {
+		return nil
+	}
+
+	// Filter children recursively first
+	var filteredChildren []*stack.TreeNode
+	for _, child := range node.Children {
+		// Recurse first to process all descendants
+		filtered := filterMergedBranchesForNew(child, prCache)
+
+		// Only filter out merged branches if they have no children
+		// (i.e., they're leaf nodes)
+		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
+			// If this merged branch still has children after filtering, keep it
+			// so the stack structure remains visible
+			if filtered != nil && len(filtered.Children) > 0 {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+			// Otherwise skip this merged leaf branch
+		} else {
+			// Not merged, keep it
+			if filtered != nil {
+				filteredChildren = append(filteredChildren, filtered)
+			}
+		}
+	}
+
+	node.Children = filteredChildren
+	return node
+}
+
 // printStackTree is a simplified version of the status tree printer
-func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch string) {
+func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
 	if node == nil {
 		return
 	}
 
-	marker := " "
-	if node.Name == currentBranch {
-		marker = "*"
+	// Flatten the tree into a vertical list
+	printStackTreeVertical(node, currentBranch, prCache, false)
+}
+
+func printStackTreeVertical(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+	if node == nil {
+		return
 	}
 
-	branch := prefix
-	if prefix != "" {
-		if isLast {
-			branch += "└─ "
-		} else {
-			branch += "├─ "
+	marker := ""
+	if node.Name == currentBranch {
+		marker = " *"
+	}
+
+	// Get PR info from cache
+	prInfo := ""
+	if node.Name != stack.GetBaseBranch() {
+		if pr, exists := prCache[node.Name]; exists {
+			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
 		}
 	}
 
-	fmt.Printf("%s%s%s\n", marker, branch, node.Name)
-
-	childPrefix := prefix
-	if isLast {
-		childPrefix += "   "
-	} else {
-		childPrefix += "│  "
+	// Print pipe if needed
+	if isPipe {
+		fmt.Println("  |")
 	}
 
-	for i, child := range node.Children {
-		isLastChild := i == len(node.Children)-1
-		printStackTree(child, childPrefix, isLastChild, currentBranch)
+	// Print current node
+	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
+
+	// Print children vertically
+	for _, child := range node.Children {
+		printStackTreeVertical(child, currentBranch, prCache, true)
 	}
 }
 
