@@ -7,6 +7,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
+	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
@@ -82,13 +83,17 @@ func runStatus() error {
 	if noPR {
 		prCache = make(map[string]*github.PRInfo)
 	} else {
-		prCache = fetchPRsForBranchNames(allTreeBranches)
+		spinner.Wrap("Fetching PR information...", func() error {
+			prCache = fetchPRsForBranchNames(allTreeBranches)
+			return nil
+		})
 	}
 
 	// Filter out branches with merged PRs from the tree (but keep current branch)
 	tree = filterMergedBranches(tree, prCache, currentBranch)
 
 	// Print the tree
+	fmt.Println()
 	printTree(tree, "", true, currentBranch, prCache)
 
 	// Check for sync issues (skip if --no-pr)
