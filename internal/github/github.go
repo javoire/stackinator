@@ -21,6 +21,7 @@ type PRInfo struct {
 	State  string
 	Base   string
 	Title  string
+	URL    string
 }
 
 // runGH executes a gh CLI command and returns stdout
@@ -43,7 +44,7 @@ func runGH(args ...string) (string, error) {
 
 // GetPRForBranch returns PR info for the specified branch
 func GetPRForBranch(branch string) (*PRInfo, error) {
-	output, err := runGH("pr", "view", branch, "--json", "number,state,baseRefName,title")
+	output, err := runGH("pr", "view", branch, "--json", "number,state,baseRefName,title,url")
 	if err != nil {
 		// No PR exists for this branch
 		return nil, nil
@@ -54,6 +55,7 @@ func GetPRForBranch(branch string) (*PRInfo, error) {
 		State       string `json:"state"`
 		BaseRefName string `json:"baseRefName"`
 		Title       string `json:"title"`
+		URL         string `json:"url"`
 	}
 
 	if err := json.Unmarshal([]byte(output), &data); err != nil {
@@ -65,6 +67,7 @@ func GetPRForBranch(branch string) (*PRInfo, error) {
 		State:  data.State,
 		Base:   data.BaseRefName,
 		Title:  data.Title,
+		URL:    data.URL,
 	}, nil
 }
 
