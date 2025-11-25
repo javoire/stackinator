@@ -85,6 +85,16 @@ func SetConfig(key, value string) error {
 	return err
 }
 
+// UnsetConfig removes a git config value
+func UnsetConfig(key string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git config --unset %s\n", key)
+		return nil
+	}
+	_, err := runCmd("config", "--unset", key)
+	return err
+}
+
 // CreateBranch creates a new branch from the specified base and checks it out
 func CreateBranch(name, from string) error {
 	if DryRun {
@@ -108,10 +118,10 @@ func CheckoutBranch(name string) error {
 // Rebase rebases the current branch onto the specified base
 func Rebase(onto string) error {
 	if DryRun {
-		fmt.Printf("  [DRY RUN] git rebase %s\n", onto)
+		fmt.Printf("  [DRY RUN] git rebase --autostash %s\n", onto)
 		return nil
 	}
-	_, err := runCmd("rebase", onto)
+	_, err := runCmd("rebase", "--autostash", onto)
 	return err
 }
 
@@ -155,6 +165,26 @@ func Fetch() error {
 func BranchExists(name string) bool {
 	output := runCmdMayFail("rev-parse", "--verify", "refs/heads/"+name)
 	return output != ""
+}
+
+// Stash stashes the current changes
+func Stash(message string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git stash push -m \"%s\"\n", message)
+		return nil
+	}
+	_, err := runCmd("stash", "push", "-m", message)
+	return err
+}
+
+// StashPop pops the most recent stash
+func StashPop() error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git stash pop\n")
+		return nil
+	}
+	_, err := runCmd("stash", "pop")
+	return err
 }
 
 
