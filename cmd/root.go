@@ -58,11 +58,10 @@ func init() {
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(parentCmd)
 }
 
 // Execute runs the root command
 func Execute() error {
 	return rootCmd.Execute()
 }
-
-

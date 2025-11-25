@@ -15,8 +15,7 @@
 go.work
 
 # Binary output
-stack
-stackinator
+/stack
 
 # IDE
 .vscode/

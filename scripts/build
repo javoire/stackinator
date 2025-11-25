@@ -8,7 +8,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
 echo "Building stackinator..."
-go build -o stack
+CGO_ENABLED=0 go build -ldflags="-w -s" -o stack
 
 echo "✓ Build complete: ./stack"
 
