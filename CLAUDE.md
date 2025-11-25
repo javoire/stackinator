@@ -44,20 +44,24 @@ go test ./...
 - **`internal/git/`**: Git operations wrapper with dry-run and verbose support
 - **`internal/github/`**: GitHub CLI (`gh`) wrapper for PR operations
 - **`internal/stack/`**: Core stack logic including topological sort and tree building
+- **`internal/spinner/`**: Loading spinner for slow operations (disabled in verbose mode)
 
 ### Key Algorithms
 
 **Topological Sort** (`internal/stack/stack.go:TopologicalSort`):
+
 - Builds dependency graph from parent relationships
 - Performs Kahn's algorithm to order branches from base to tips
 - Critical for `stack sync` to rebase in correct order
 
 **Merged PR Detection** (`cmd/sync.go:runSync`):
+
 - Fetches all PRs upfront for performance (cached in single API call)
 - If parent PR is merged, updates child's parent to grandparent
 - If branch's own PR is merged, removes from stack tracking
 
 **Tree Building** (`internal/stack/stack.go:BuildStackTree`):
+
 - Constructs visual tree from parent relationships
 - Handles multiple independent stacks in same repo
 - Used by `stack status` command
@@ -65,8 +69,13 @@ go test ./...
 ### Global Flags
 
 Both `git` and `github` packages support:
+
 - `DryRun`: Print what would happen without executing mutations
 - `Verbose`: Show all git/gh commands being executed
+
+The `spinner` package also respects the verbose flag:
+
+- `Enabled`: When false (verbose mode), spinners are hidden to avoid visual conflicts with command output
 
 These are set via persistent flags on root command.
 
@@ -79,6 +88,7 @@ These are set via persistent flags on root command.
 ## Configuration
 
 Base branch can be configured per-repo:
+
 ```bash
 git config stack.baseBranch develop  # Default is "main"
 ```
@@ -86,9 +96,12 @@ git config stack.baseBranch develop  # Default is "main"
 ## Testing
 
 Currently no test files exist. When adding tests:
+
 - Use table-driven tests for topological sort and tree building
 - Mock git/gh command execution for unit tests
 - Consider integration tests that use temporary git repos
+
+**IMPORTANT**: When testing git operations (creating branches, stashing, etc.), always use `./tests/test-repo` directory, NOT the main repository. This keeps the main repo clean and prevents pollution from test branches.
 
 ## Key Implementation Details
 

@@ -7,8 +7,13 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
+	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
+)
+
+var (
+	syncForce bool
 )
 
 var syncCmd = &cobra.Command{
@@ -35,6 +40,9 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
   # Show detailed git/gh commands
   stack sync --verbose
 
+  # Force push even if branches have diverged
+  stack sync --force
+
   # Common workflow after updating main
   git checkout main && git pull
   stack sync`,
@@ -44,6 +52,10 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
 			os.Exit(1)
 		}
 	},
+}
+
+func init() {
+	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Force push even if local and remote have diverged (use with caution)")
 }
 
 func runSync() error {
@@ -87,20 +99,40 @@ func runSync() error {
 	fmt.Println()
 
 	// Fetch from origin
-	fmt.Println("Fetching from origin...")
-	if err := git.Fetch(); err != nil {
+	if err := spinner.WrapWithSuccess("Fetching from origin...", "Fetched from origin", func() error {
+		return git.Fetch()
+	}); err != nil {
 		return fmt.Errorf("failed to fetch: %w", err)
 	}
 
-	// Get all stack branches
-	stackBranches, err := stack.GetStackBranches()
+	// Get only branches in the current branch's stack
+	chain, err := stack.GetStackChain(originalBranch)
+	if err != nil {
+		return fmt.Errorf("failed to get stack chain: %w", err)
+	}
+
+	if len(chain) == 0 {
+		fmt.Println("No stack branches found.")
+		return nil
+	}
+
+	// Build set of branches in current stack
+	chainSet := make(map[string]bool)
+	for _, b := range chain {
+		chainSet[b] = true
+	}
+
+	// Get all stack branches and filter to current stack only
+	allStackBranches, err := stack.GetStackBranches()
 	if err != nil {
 		return fmt.Errorf("failed to get stack branches: %w", err)
 	}
 
-	if len(stackBranches) == 0 {
-		fmt.Println("No stack branches found.")
-		return nil
+	var stackBranches []stack.StackBranch
+	for _, b := range allStackBranches {
+		if chainSet[b.Name] {
+			stackBranches = append(stackBranches, b)
+		}
 	}
 
 	// Sort branches in topological order (bottom to top)
@@ -109,13 +141,56 @@ func runSync() error {
 		return fmt.Errorf("failed to sort branches: %w", err)
 	}
 
+	// Check if any branches in the current stack are in worktrees
+	worktrees, err := git.GetWorktreeBranches()
+	if err != nil {
+		// Non-fatal, continue without worktree detection
+		worktrees = make(map[string]string)
+	}
+
+	// Get current worktree path to check if we're already in the right place
+	currentWorktreePath, err := git.GetCurrentWorktreePath()
+	if err != nil {
+		// Non-fatal, continue without worktree path detection
+		currentWorktreePath = ""
+	}
+
+	for _, branch := range sorted {
+		if worktreePath, inWorktree := worktrees[branch.Name]; inWorktree {
+			// Only error if we're NOT already in this worktree
+			if currentWorktreePath != worktreePath {
+				return fmt.Errorf(
+					"cannot sync: branch '%s' is checked out in worktree at %s\n\n"+
+						"To sync this stack:\n"+
+						"  1. cd %s\n"+
+						"  2. stack sync\n\n"+
+						"Or remove the worktree: git worktree remove %s",
+					branch.Name,
+					worktreePath,
+					worktreePath,
+					worktreePath,
+				)
+			}
+		}
+	}
+
 	fmt.Printf("Processing %d branch(es)...\n\n", len(sorted))
 
 	// Fetch all PRs upfront for better performance
-	prCache, err := github.GetAllPRs()
-	if err != nil {
-		// If fetching PRs fails, fall back to individual fetches
+	var prCache map[string]*github.PRInfo
+	if err := spinner.Wrap("Fetching PR information...", func() error {
+		var err error
+		prCache, err = github.GetAllPRs()
+		return err
+	}); err != nil {
+		// If fetching PRs fails, fall back to empty cache
 		prCache = make(map[string]*github.PRInfo)
+	}
+
+	// Build a set of stack branch names for quick lookup
+	stackBranchSet := make(map[string]bool)
+	for _, sb := range stackBranches {
+		stackBranchSet[sb.Name] = true
 	}
 
 	// Process each branch
@@ -140,7 +215,7 @@ func runSync() error {
 
 		// Check if parent PR is merged
 		parentUpdated := false
-		parentPR, _ := prCache[branch.Parent]
+		parentPR := prCache[branch.Parent]
 		if parentPR != nil && parentPR.State == "MERGED" {
 			fmt.Printf("  Parent PR #%d has been merged\n", parentPR.Number)
 
@@ -165,22 +240,127 @@ func runSync() error {
 			return fmt.Errorf("failed to checkout %s: %w", branch.Name, err)
 		}
 
+		// Sync with remote branch if it exists (unless --force is set)
+		remoteBranch := "origin/" + branch.Name
+		if git.RemoteBranchExists(branch.Name) && !syncForce {
+			// Check if local and remote have diverged
+			localHash, err := git.GetCommitHash(branch.Name)
+			if err != nil {
+				return fmt.Errorf("failed to get local commit hash: %w", err)
+			}
+
+			remoteHash, err := git.GetCommitHash(remoteBranch)
+			if err != nil {
+				return fmt.Errorf("failed to get remote commit hash: %w", err)
+			}
+
+			if localHash != remoteHash {
+				// Check merge base to determine relationship
+				mergeBase, err := git.GetMergeBase(branch.Name, remoteBranch)
+				if err != nil {
+					return fmt.Errorf("failed to get merge base: %w", err)
+				}
+
+				if mergeBase == remoteHash {
+					// Local is ahead of remote (we have new commits)
+					if git.Verbose {
+						fmt.Printf("  Local branch is ahead of origin (has new commits)\n")
+					}
+				} else if mergeBase == localHash {
+					// Local is behind remote (safe to fast-forward)
+					fmt.Printf("  Fast-forwarding to origin/%s...\n", branch.Name)
+					if err := git.ResetToRemote(branch.Name); err != nil {
+						return fmt.Errorf("failed to fast-forward: %w", err)
+					}
+				} else {
+					// Branches have diverged - this is NOT safe to auto-resolve
+					fmt.Fprintf(os.Stderr, "  Error: local and remote have diverged for %s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "\n  This usually means:\n")
+					fmt.Fprintf(os.Stderr, "    - Someone else force-pushed to the remote, OR\n")
+					fmt.Fprintf(os.Stderr, "    - You have local commits that differ from remote\n")
+					fmt.Fprintf(os.Stderr, "\n  To resolve:\n")
+					fmt.Fprintf(os.Stderr, "    1. Check what's on remote: git log origin/%s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "    2. Check what's local: git log %s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "    3. If remote is correct: git reset --hard origin/%s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "    4. If local is correct: stack sync --force\n")
+					fmt.Fprintf(os.Stderr, "    5. Then run 'stack sync' again\n")
+					return fmt.Errorf("branch %s has diverged from remote", branch.Name)
+				}
+			} else if git.Verbose {
+				fmt.Printf("  Local branch is up-to-date with origin/%s\n", branch.Name)
+			}
+		} else if syncForce && git.RemoteBranchExists(branch.Name) {
+			if git.Verbose {
+				fmt.Printf("  Skipping divergence check (--force enabled)\n")
+			}
+		} else {
+			if git.Verbose {
+				fmt.Printf("  Remote branch origin/%s doesn't exist yet (new branch)\n", branch.Name)
+			}
+		}
+
+		// Determine rebase target: origin/<parent> for base branches, local for stack branches
+		rebaseTarget := branch.Parent
+		if !stackBranchSet[branch.Parent] {
+			// Parent is not a stack branch, so it's a base branch - use origin/<parent>
+			rebaseTarget = "origin/" + branch.Parent
+		}
+
 		// Rebase onto parent
-		fmt.Printf("  Rebasing onto %s...\n", branch.Parent)
-		if err := git.Rebase(branch.Parent); err != nil {
-			fmt.Fprintf(os.Stderr, "  Error: failed to rebase: %v\n", err)
+		if err := spinner.WrapWithSuccess(
+			fmt.Sprintf("  Rebasing onto %s...", rebaseTarget),
+			fmt.Sprintf("  Rebased onto %s", rebaseTarget),
+			func() error {
+				return git.Rebase(rebaseTarget)
+			},
+		); err != nil {
 			fmt.Fprintf(os.Stderr, "  Please resolve conflicts and run 'git rebase --continue', then run 'stack sync' again\n")
 			return err
 		}
 
-		// Push to origin
-		fmt.Printf("  Pushing to origin...\n")
-		if err := git.Push(branch.Name, true); err != nil {
-			fmt.Fprintf(os.Stderr, "  Warning: failed to push: %v\n", err)
+		// Push to origin - FAIL FAST if this fails
+		pushErr := spinner.WrapWithSuccess(
+			"  Pushing to origin...",
+			"  Pushed to origin",
+			func() error {
+				if syncForce {
+					// Use regular --force (bypasses --force-with-lease safety checks)
+					if git.Verbose {
+						fmt.Printf("  Using --force (bypassing safety checks)\n")
+					}
+					return git.ForcePush(branch.Name)
+				}
+
+				// Fetch one more time right before push to ensure --force-with-lease has fresh tracking info
+				// This prevents "stale info" errors if the remote was updated during our rebase
+				if git.RemoteBranchExists(branch.Name) {
+					if git.Verbose {
+						fmt.Printf("  Refreshing remote tracking ref before push...\n")
+					}
+					if err := git.FetchBranch(branch.Name); err != nil {
+						// Non-fatal, continue with push
+						if git.Verbose {
+							fmt.Fprintf(os.Stderr, "  Note: could not refresh tracking ref: %v\n", err)
+						}
+					}
+				}
+
+				// Use --force-with-lease (safe force push)
+				return git.Push(branch.Name, true)
+			},
+		)
+
+		if pushErr != nil {
+			if !syncForce {
+				fmt.Fprintf(os.Stderr, "\nPossible causes:\n")
+				fmt.Fprintf(os.Stderr, "  1. Remote branch was updated by someone else - try running 'stack sync' again\n")
+				fmt.Fprintf(os.Stderr, "  2. Your local branch has diverged from remote - use 'stack sync --force'\n")
+			}
+			return fmt.Errorf("push failed for %s", branch.Name)
 		}
 
 		// Check if PR exists and update base if needed
-		pr, _ := prCache[branch.Name]
+		pr := prCache[branch.Name]
 		if pr != nil {
 			if pr.Base != branch.Parent || parentUpdated {
 				fmt.Printf("  Updating PR #%d base from %s to %s...\n", pr.Number, pr.Base, branch.Parent)
@@ -239,16 +419,21 @@ func displayStatusAfterSync() error {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	tree, err := stack.BuildStackTree()
+	tree, err := stack.BuildStackTreeForBranch(currentBranch)
 	if err != nil {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
 	// Fetch all PRs for display
-	prCache, err := github.GetAllPRs()
-	if err != nil {
-		prCache = make(map[string]*github.PRInfo)
-	}
+	var prCache map[string]*github.PRInfo
+	spinner.Wrap("Fetching PR information...", func() error {
+		var err error
+		prCache, err = github.GetAllPRs()
+		if err != nil {
+			prCache = make(map[string]*github.PRInfo)
+		}
+		return nil
+	})
 
 	// Filter out branches with merged PRs (leaf nodes only)
 	tree = filterMergedBranchesForSync(tree, prCache)
@@ -331,5 +516,3 @@ func printTreeVerticalForSync(node *stack.TreeNode, currentBranch string, prCach
 		printTreeVerticalForSync(child, currentBranch, prCache, true)
 	}
 }
-
-

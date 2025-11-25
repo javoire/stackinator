@@ -17,11 +17,12 @@ var DryRun = false
 
 // PRInfo contains information about a Pull Request
 type PRInfo struct {
-	Number int
-	State  string
-	Base   string
-	Title  string
-	URL    string
+	Number           int
+	State            string
+	Base             string
+	Title            string
+	URL              string
+	MergeStateStatus string // "BEHIND", "BLOCKED", "CLEAN", "DIRTY", "UNKNOWN", "UNSTABLE"
 }
 
 // runGH executes a gh CLI command and returns stdout
@@ -44,18 +45,19 @@ func runGH(args ...string) (string, error) {
 
 // GetPRForBranch returns PR info for the specified branch
 func GetPRForBranch(branch string) (*PRInfo, error) {
-	output, err := runGH("pr", "view", branch, "--json", "number,state,baseRefName,title,url")
+	output, err := runGH("pr", "view", branch, "--json", "number,state,baseRefName,title,url,mergeStateStatus")
 	if err != nil {
 		// No PR exists for this branch
 		return nil, nil
 	}
 
 	var data struct {
-		Number      int    `json:"number"`
-		State       string `json:"state"`
-		BaseRefName string `json:"baseRefName"`
-		Title       string `json:"title"`
-		URL         string `json:"url"`
+		Number           int    `json:"number"`
+		State            string `json:"state"`
+		BaseRefName      string `json:"baseRefName"`
+		Title            string `json:"title"`
+		URL              string `json:"url"`
+		MergeStateStatus string `json:"mergeStateStatus"`
 	}
 
 	if err := json.Unmarshal([]byte(output), &data); err != nil {
@@ -63,29 +65,31 @@ func GetPRForBranch(branch string) (*PRInfo, error) {
 	}
 
 	return &PRInfo{
-		Number: data.Number,
-		State:  data.State,
-		Base:   data.BaseRefName,
-		Title:  data.Title,
-		URL:    data.URL,
+		Number:           data.Number,
+		State:            data.State,
+		Base:             data.BaseRefName,
+		Title:            data.Title,
+		URL:              data.URL,
+		MergeStateStatus: data.MergeStateStatus,
 	}, nil
 }
 
 // GetAllPRs fetches all PRs for the repository in a single call
 func GetAllPRs() (map[string]*PRInfo, error) {
 	// Fetch all PRs (open, closed, and merged) in one call
-	output, err := runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url", "--limit", "1000")
+	output, err := runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "1000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list PRs: %w", err)
 	}
 
 	var prs []struct {
-		Number      int    `json:"number"`
-		State       string `json:"state"`
-		HeadRefName string `json:"headRefName"`
-		BaseRefName string `json:"baseRefName"`
-		Title       string `json:"title"`
-		URL         string `json:"url"`
+		Number           int    `json:"number"`
+		State            string `json:"state"`
+		HeadRefName      string `json:"headRefName"`
+		BaseRefName      string `json:"baseRefName"`
+		Title            string `json:"title"`
+		URL              string `json:"url"`
+		MergeStateStatus string `json:"mergeStateStatus"`
 	}
 
 	if err := json.Unmarshal([]byte(output), &prs); err != nil {
@@ -96,11 +100,12 @@ func GetAllPRs() (map[string]*PRInfo, error) {
 	prMap := make(map[string]*PRInfo)
 	for _, pr := range prs {
 		prMap[pr.HeadRefName] = &PRInfo{
-			Number: pr.Number,
-			State:  pr.State,
-			Base:   pr.BaseRefName,
-			Title:  pr.Title,
-			URL:    pr.URL,
+			Number:           pr.Number,
+			State:            pr.State,
+			Base:             pr.BaseRefName,
+			Title:            pr.Title,
+			URL:              pr.URL,
+			MergeStateStatus: pr.MergeStateStatus,
 		}
 	}
 
