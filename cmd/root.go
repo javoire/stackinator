@@ -6,6 +6,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
+	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/spf13/cobra"
 )
 
@@ -42,6 +43,9 @@ The tool helps you create, navigate, and sync stacked branches with minimal over
 		github.DryRun = dryRun
 		github.Verbose = verbose
 
+		// Disable spinners in verbose mode to avoid visual conflicts
+		spinner.Enabled = !verbose
+
 		// Validate we're in a git repository
 		if _, err := git.GetRepoRoot(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: not in a git repository\n")
@@ -60,6 +64,7 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(parentCmd)
 	rootCmd.AddCommand(renameCmd)
+	rootCmd.AddCommand(reparentCmd)
 }
 
 // Execute runs the root command
