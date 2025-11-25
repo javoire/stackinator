@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	noPR bool
+)
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show the current stack structure",
@@ -22,6 +26,9 @@ var statusCmd = &cobra.Command{
 This helps you visualize your stack and see which branches have PRs.`,
 	Example: `  # Show stack structure
   stack status
+
+  # Show without PR info (faster)
+  stack status --no-pr
 
   # Example output:
   #  main
@@ -37,17 +44,15 @@ This helps you visualize your stack and see which branches have PRs.`,
 	},
 }
 
+func init() {
+	statusCmd.Flags().BoolVar(&noPR, "no-pr", false, "Skip fetching PR information (faster)")
+}
+
 func runStatus() error {
 	// Get current branch
 	currentBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
-	}
-
-	// Build stack tree
-	tree, err := stack.BuildStackTree()
-	if err != nil {
-		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
 	// Check if there are any stack branches
@@ -63,11 +68,21 @@ func runStatus() error {
 		return nil
 	}
 
-	// Fetch all PRs upfront for better performance
-	prCache, err := github.GetAllPRs()
+	// Build stack tree for current branch only
+	tree, err := stack.BuildStackTreeForBranch(currentBranch)
 	if err != nil {
-		// If fetching PRs fails, just continue without PR info
+		return fmt.Errorf("failed to build stack tree: %w", err)
+	}
+
+	// Get only branches in the current stack for efficient PR fetching
+	currentStackBranches := getStackBranchesFromTree(tree, stackBranches)
+
+	// Fetch PRs only for branches in the current stack (much faster than fetching all PRs)
+	var prCache map[string]*github.PRInfo
+	if noPR {
 		prCache = make(map[string]*github.PRInfo)
+	} else {
+		prCache = fetchPRsForBranches(currentStackBranches)
 	}
 
 	// Filter out branches with merged PRs from the tree
@@ -76,13 +91,64 @@ func runStatus() error {
 	// Print the tree
 	printTree(tree, "", true, currentBranch, prCache)
 
-	// Check for sync issues
-	if err := detectSyncIssues(stackBranches, prCache); err != nil {
-		// Don't fail on detection errors, just skip the check
-		return nil
+	// Check for sync issues (skip if --no-pr)
+	if !noPR {
+		if err := detectSyncIssues(currentStackBranches, prCache); err != nil {
+			// Don't fail on detection errors, just skip the check
+			return nil
+		}
 	}
 
 	return nil
+}
+
+// fetchPRsForBranches fetches PR info for specific branches (faster than fetching all PRs)
+func fetchPRsForBranches(branches []stack.StackBranch) map[string]*github.PRInfo {
+	prCache := make(map[string]*github.PRInfo)
+
+	for _, branch := range branches {
+		pr, err := github.GetPRForBranch(branch.Name)
+		if err != nil {
+			// Ignore errors, just skip this branch's PR info
+			continue
+		}
+		if pr != nil {
+			prCache[branch.Name] = pr
+		}
+	}
+
+	return prCache
+}
+
+// getStackBranchesFromTree extracts all branches from the tree
+func getStackBranchesFromTree(node *stack.TreeNode, allBranches []stack.StackBranch) []stack.StackBranch {
+	if node == nil {
+		return nil
+	}
+
+	branchMap := make(map[string]stack.StackBranch)
+	for _, b := range allBranches {
+		branchMap[b.Name] = b
+	}
+
+	var result []stack.StackBranch
+	var traverse func(*stack.TreeNode)
+	traverse = func(n *stack.TreeNode) {
+		if n == nil {
+			return
+		}
+		// Add current branch if it's a stack branch
+		if b, exists := branchMap[n.Name]; exists {
+			result = append(result, b)
+		}
+		// Traverse children
+		for _, child := range n.Children {
+			traverse(child)
+		}
+	}
+
+	traverse(node)
+	return result
 }
 
 // filterMergedBranches removes branches with merged PRs from the tree,
@@ -97,7 +163,7 @@ func filterMergedBranches(node *stack.TreeNode, prCache map[string]*github.PRInf
 	for _, child := range node.Children {
 		// Recurse first to process all descendants
 		filtered := filterMergedBranches(child, prCache)
-		
+
 		// Only filter out merged branches if they have no children
 		// (i.e., they're leaf nodes)
 		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
@@ -217,5 +283,3 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 func repeatString(s string, n int) string {
 	return strings.Repeat(s, n)
 }
-
-
