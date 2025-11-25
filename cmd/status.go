@@ -65,13 +65,20 @@ func runStatus() error {
 	fmt.Println("Stack structure:")
 	fmt.Println()
 
+	// Fetch all PRs upfront for better performance
+	prCache, err := github.GetAllPRs()
+	if err != nil {
+		// If fetching PRs fails, just continue without PR info
+		prCache = make(map[string]*github.PRInfo)
+	}
+
 	// Print the tree
-	printTree(tree, "", true, currentBranch)
+	printTree(tree, "", true, currentBranch, prCache)
 
 	return nil
 }
 
-func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch string) {
+func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
 	if node == nil {
 		return
 	}
@@ -92,10 +99,10 @@ func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch s
 		}
 	}
 
-	// Get PR info if available
+	// Get PR info from cache
 	prInfo := ""
 	if node.Name != stack.GetBaseBranch() {
-		if pr, err := github.GetPRForBranch(node.Name); err == nil && pr != nil {
+		if pr, exists := prCache[node.Name]; exists {
 			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
 		}
 	}
@@ -112,7 +119,7 @@ func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch s
 
 	for i, child := range node.Children {
 		isLastChild := i == len(node.Children)-1
-		printTree(child, childPrefix, isLastChild, currentBranch)
+		printTree(child, childPrefix, isLastChild, currentBranch, prCache)
 	}
 }
 
