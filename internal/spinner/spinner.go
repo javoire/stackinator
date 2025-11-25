@@ -13,14 +13,15 @@ var Enabled = true
 
 // Spinner represents a loading spinner
 type Spinner struct {
-	message   string
-	frames    []string
-	interval  time.Duration
-	writer    io.Writer
-	stopChan  chan struct{}
-	stopped   bool
-	mu        sync.Mutex
+	message      string
+	frames       []string
+	interval     time.Duration
+	writer       io.Writer
+	stopChan     chan struct{}
+	stopped      bool
+	mu           sync.Mutex
 	hideWhenDone bool
+	wg           sync.WaitGroup
 }
 
 var defaultFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -28,11 +29,11 @@ var defaultFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 // New creates a new spinner with the given message
 func New(message string) *Spinner {
 	return &Spinner{
-		message:   message,
-		frames:    defaultFrames,
-		interval:  80 * time.Millisecond,
-		writer:    os.Stdout,
-		stopChan:  make(chan struct{}),
+		message:      message,
+		frames:       defaultFrames,
+		interval:     80 * time.Millisecond,
+		writer:       os.Stdout,
+		stopChan:     make(chan struct{}),
 		hideWhenDone: false,
 	}
 }
@@ -46,6 +47,7 @@ func (s *Spinner) HideWhenDone() *Spinner {
 // Start starts the spinner
 func (s *Spinner) Start() *Spinner {
 	if Enabled {
+		s.wg.Add(1)
 		go s.run()
 	}
 	return s
@@ -64,12 +66,20 @@ func (s *Spinner) Stop(finalMessage string) {
 
 	if Enabled {
 		close(s.stopChan)
+		s.mu.Unlock() // Unlock so the goroutine can finish
 
-		// Wait a tiny bit for the goroutine to finish
-		time.Sleep(10 * time.Millisecond)
+		// Wait for the goroutine to fully finish
+		s.wg.Wait()
 
-		// Clear the line
+		s.mu.Lock() // Re-lock for the rest of the function
+
+		// Clear the line and move cursor to beginning
 		fmt.Fprint(s.writer, "\r\033[K")
+
+		// Flush to ensure clearing is processed immediately
+		if f, ok := s.writer.(interface{ Sync() error }); ok {
+			_ = f.Sync()
+		}
 	}
 
 	// Print final message if not hiding
@@ -86,6 +96,7 @@ func (s *Spinner) UpdateMessage(message string) {
 }
 
 func (s *Spinner) run() {
+	defer s.wg.Done()
 	frameIdx := 0
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
@@ -137,3 +148,93 @@ func WrapWithSuccess(message, successMessage string, fn func() error) error {
 	return nil
 }
 
+// ProgressFunc is a function that can be called to update spinner progress
+type ProgressFunc func(message string)
+
+// WrapWithAutoDelay runs a function and only shows a spinner if it takes longer than the delay
+func WrapWithAutoDelay(message string, delay time.Duration, fn func() error) error {
+	if !Enabled {
+		// When disabled (verbose mode), just run the function
+		return fn()
+	}
+
+	// Create a timer and a flag to track if we should show the spinner
+	var sp *Spinner
+	var mu sync.Mutex
+	spinnerStarted := false
+
+	// Start a goroutine that will show the spinner after the delay
+	timer := time.AfterFunc(delay, func() {
+		mu.Lock()
+		defer mu.Unlock()
+		sp = New(message).HideWhenDone().Start()
+		spinnerStarted = true
+	})
+
+	// Run the function (synchronously)
+	err := fn()
+
+	// Stop the timer to prevent spinner from starting if function completed quickly
+	timer.Stop()
+
+	// Small delay to ensure timer goroutine has finished
+	time.Sleep(15 * time.Millisecond)
+
+	// Now safely stop the spinner if it was started
+	mu.Lock()
+	if spinnerStarted && sp != nil {
+		sp.Stop("")
+	}
+	mu.Unlock()
+
+	return err
+}
+
+// WrapWithAutoDelayAndProgress runs a function with auto-delay spinner that supports progress updates
+func WrapWithAutoDelayAndProgress(message string, delay time.Duration, fn func(progress ProgressFunc) error) error {
+	if !Enabled {
+		// When disabled (verbose mode), just run the function with a no-op progress callback
+		return fn(func(msg string) {})
+	}
+
+	// Create a timer and a flag to track if we should show the spinner
+	var sp *Spinner
+	var mu sync.Mutex
+	spinnerStarted := false
+
+	// Start a goroutine that will show the spinner after the delay
+	timer := time.AfterFunc(delay, func() {
+		mu.Lock()
+		defer mu.Unlock()
+		sp = New(message).HideWhenDone().Start()
+		spinnerStarted = true
+	})
+
+	// Create progress callback that updates spinner if it's running
+	progress := func(msg string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if spinnerStarted && sp != nil {
+			sp.UpdateMessage(msg)
+		}
+		// If spinner hasn't started yet, progress updates are no-ops
+	}
+
+	// Run the function (synchronously) with progress callback
+	err := fn(progress)
+
+	// Stop the timer to prevent spinner from starting if function completed quickly
+	timer.Stop()
+
+	// Small delay to ensure timer goroutine has finished
+	time.Sleep(15 * time.Millisecond)
+
+	// Now safely stop the spinner if it was started
+	mu.Lock()
+	if spinnerStarted && sp != nil {
+		sp.Stop("")
+	}
+	mu.Unlock()
+
+	return err
+}
