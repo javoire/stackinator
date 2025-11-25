@@ -139,7 +139,7 @@ func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github
 	for _, child := range node.Children {
 		// Recurse first to process all descendants
 		filtered := filterMergedBranchesForNew(child, prCache)
-		
+
 		// Only filter out merged branches if they have no children
 		// (i.e., they're leaf nodes)
 		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
