@@ -74,26 +74,26 @@ func runStatus() error {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
-	// Get only branches in the current stack for efficient PR fetching
-	currentStackBranches := getStackBranchesFromTree(tree, stackBranches)
+	// Get ALL branch names in the tree (including intermediate branches without stackparent)
+	allTreeBranches := getAllBranchNamesFromTree(tree)
 
-	// Fetch PRs only for branches in the current stack (much faster than fetching all PRs)
+	// Fetch PRs for all branches in the tree
 	var prCache map[string]*github.PRInfo
 	if noPR {
 		prCache = make(map[string]*github.PRInfo)
 	} else {
-		prCache = fetchPRsForBranches(currentStackBranches)
+		prCache = fetchPRsForBranchNames(allTreeBranches)
 	}
 
-	// Filter out branches with merged PRs from the tree
-	tree = filterMergedBranches(tree, prCache)
+	// Filter out branches with merged PRs from the tree (but keep current branch)
+	tree = filterMergedBranches(tree, prCache, currentBranch)
 
 	// Print the tree
 	printTree(tree, "", true, currentBranch, prCache)
 
 	// Check for sync issues (skip if --no-pr)
 	if !noPR {
-		if err := detectSyncIssues(currentStackBranches, prCache); err != nil {
+		if err := detectSyncIssues(stackBranches, prCache); err != nil {
 			// Don't fail on detection errors, just skip the check
 			return nil
 		}
@@ -102,45 +102,39 @@ func runStatus() error {
 	return nil
 }
 
-// fetchPRsForBranches fetches PR info for specific branches (faster than fetching all PRs)
-func fetchPRsForBranches(branches []stack.StackBranch) map[string]*github.PRInfo {
+// fetchPRsForBranchNames fetches PR info for specific branch names
+func fetchPRsForBranchNames(branchNames []string) map[string]*github.PRInfo {
 	prCache := make(map[string]*github.PRInfo)
 
-	for _, branch := range branches {
-		pr, err := github.GetPRForBranch(branch.Name)
+	for _, branchName := range branchNames {
+		pr, err := github.GetPRForBranch(branchName)
 		if err != nil {
 			// Ignore errors, just skip this branch's PR info
 			continue
 		}
 		if pr != nil {
-			prCache[branch.Name] = pr
+			prCache[branchName] = pr
 		}
 	}
 
 	return prCache
 }
 
-// getStackBranchesFromTree extracts all branches from the tree
-func getStackBranchesFromTree(node *stack.TreeNode, allBranches []stack.StackBranch) []stack.StackBranch {
+// getAllBranchNamesFromTree extracts all branch names from the tree
+// (including intermediate branches that may not have stackparent config)
+func getAllBranchNamesFromTree(node *stack.TreeNode) []string {
 	if node == nil {
 		return nil
 	}
 
-	branchMap := make(map[string]stack.StackBranch)
-	for _, b := range allBranches {
-		branchMap[b.Name] = b
-	}
-
-	var result []stack.StackBranch
+	var result []string
 	var traverse func(*stack.TreeNode)
 	traverse = func(n *stack.TreeNode) {
 		if n == nil {
 			return
 		}
-		// Add current branch if it's a stack branch
-		if b, exists := branchMap[n.Name]; exists {
-			result = append(result, b)
-		}
+		// Add current branch name
+		result = append(result, n.Name)
 		// Traverse children
 		for _, child := range n.Children {
 			traverse(child)
@@ -153,7 +147,8 @@ func getStackBranchesFromTree(node *stack.TreeNode, allBranches []stack.StackBra
 
 // filterMergedBranches removes branches with merged PRs from the tree,
 // but only if they don't have children (to keep the stack structure visible)
-func filterMergedBranches(node *stack.TreeNode, prCache map[string]*github.PRInfo) *stack.TreeNode {
+// and they are not the current branch (always show where user is)
+func filterMergedBranches(node *stack.TreeNode, prCache map[string]*github.PRInfo, currentBranch string) *stack.TreeNode {
 	if node == nil {
 		return nil
 	}
@@ -162,14 +157,17 @@ func filterMergedBranches(node *stack.TreeNode, prCache map[string]*github.PRInf
 	var filteredChildren []*stack.TreeNode
 	for _, child := range node.Children {
 		// Recurse first to process all descendants
-		filtered := filterMergedBranches(child, prCache)
+		filtered := filterMergedBranches(child, prCache, currentBranch)
 
 		// Only filter out merged branches if they have no children
-		// (i.e., they're leaf nodes)
+		// (i.e., they're leaf nodes) AND they're not the current branch
 		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
-			// If this merged branch still has children after filtering, keep it
-			// so the stack structure remains visible
-			if filtered != nil && len(filtered.Children) > 0 {
+			// Always keep the current branch, even if merged
+			if child.Name == currentBranch {
+				filteredChildren = append(filteredChildren, filtered)
+			} else if filtered != nil && len(filtered.Children) > 0 {
+				// If this merged branch still has children after filtering, keep it
+				// so the stack structure remains visible
 				filteredChildren = append(filteredChildren, filtered)
 			}
 			// Otherwise skip this merged leaf branch
@@ -252,6 +250,13 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 			if pr.Base != branch.Parent {
 				issues = append(issues, fmt.Sprintf("  - Branch '%s' PR base (%s) doesn't match parent (%s)", branch.Name, pr.Base, branch.Parent))
 			}
+
+			// Check if branch is behind its base (needs rebase)
+			// Use git to check if there are commits on the base that aren't on this branch
+			behind, err := git.IsCommitsBehind(branch.Name, pr.Base)
+			if err == nil && behind {
+				issues = append(issues, fmt.Sprintf("  - Branch '%s' is behind %s (needs rebase)", branch.Name, pr.Base))
+			}
 		}
 	}
 
@@ -264,13 +269,20 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 		}
 		fmt.Println()
 		fmt.Println("Run 'stack sync' to rebase branches and update PR bases.")
-	}
 
-	// Suggest cleanup for merged branches
-	if len(mergedBranches) > 0 && len(issues) == 0 {
+		// Also mention merged branches if any
+		if len(mergedBranches) > 0 {
+			fmt.Println()
+			fmt.Printf("After syncing, clean up merged branches: %s\n", strings.Join(mergedBranches, ", "))
+			fmt.Printf("  git branch -D %s\n", strings.Join(mergedBranches, " "))
+		}
+	} else if len(mergedBranches) > 0 {
+		// Stack is synced but has merged branches to clean up
 		fmt.Println()
 		fmt.Printf("✓ Stack is synced. Merged branches can be cleaned up: %s\n", strings.Join(mergedBranches, ", "))
-	} else if len(mergedBranches) == 0 && len(issues) == 0 {
+		fmt.Println()
+		fmt.Printf("  git branch -D %s\n", strings.Join(mergedBranches, " "))
+	} else {
 		// Everything is perfectly synced
 		fmt.Println()
 		fmt.Println("✓ Stack is perfectly synced! All branches are up to date.")

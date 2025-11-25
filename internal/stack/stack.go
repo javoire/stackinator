@@ -224,6 +224,20 @@ func BuildStackTreeForBranch(branchName string) (*TreeNode, error) {
 
 	// Build tree starting from the root (first element in chain)
 	root := chain[0]
+
+	// If the root is not the base branch, we need to include the base branch
+	// in the tree as the actual root
+	baseBranch := GetBaseBranch()
+	if root != baseBranch {
+		// Check if the root has a parent in childrenMap (meaning there are branches
+		// that have root as their parent)
+		// We need to insert the base branch as the root
+		baseNode := &TreeNode{Name: baseBranch}
+		rootNode := buildTreeNode(root, childrenMap)
+		baseNode.Children = []*TreeNode{rootNode}
+		return baseNode, nil
+	}
+
 	return buildTreeNode(root, childrenMap), nil
 }
 
