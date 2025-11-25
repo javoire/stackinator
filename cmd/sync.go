@@ -100,13 +100,13 @@ func runSync() error {
 				fmt.Printf("  Parent PR #%d has been merged\n", parentPR.Number)
 
 				// Update parent to grandparent
-				grandparent := git.GetConfig(fmt.Sprintf("branch.%s.stackParent", branch.Parent))
+				grandparent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", branch.Parent))
 				if grandparent == "" {
 					grandparent = stack.GetBaseBranch()
 				}
 
 				fmt.Printf("  Updating parent from %s to %s\n", branch.Parent, grandparent)
-				configKey := fmt.Sprintf("branch.%s.stackParent", branch.Name)
+				configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
 				if err := git.SetConfig(configKey, grandparent); err != nil {
 					fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
 				} else {
