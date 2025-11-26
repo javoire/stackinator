@@ -49,16 +49,8 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
-      - "^style:"
-      - Merge pull request
-      - Merge branch
+  # Use semantic-release generated changelog
+  disable: true
 
 # Homebrew tap configuration
 brews:
