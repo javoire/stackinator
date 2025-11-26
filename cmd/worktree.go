@@ -13,28 +13,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	worktreeStack bool
-	worktreePrune bool
-)
+var worktreePrune bool
 
 var worktreeCmd = &cobra.Command{
-	Use:   "worktree <branch-name>",
+	Use:   "worktree <branch-name> [base-branch]",
 	Short: "Create a worktree in .worktrees/ directory",
 	Long: `Create a git worktree in the .worktrees/ directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used.
-If the branch doesn't exist, a new branch will be created from the current branch.
-Use --stack to also add stack tracking (set stackparent like 'stack new').
+If the branch doesn't exist, a new branch will be created from the current branch
+(or from base-branch if specified) and stack tracking will be set up automatically.
 Use --prune to clean up worktrees for branches with merged PRs.`,
-	Example: `  # Create worktree for new branch (created from current branch)
+	Example: `  # Create worktree for new branch (from current branch, with stack tracking)
   stack worktree my-feature
+
+  # Create worktree from a fresh main branch
+  stack worktree my-feature main
 
   # Create worktree for existing local or remote branch
   stack worktree existing-branch
-
-  # Create new branch with stack tracking + worktree
-  stack worktree new-feature --stack
 
   # Clean up worktrees for merged branches
   stack worktree --prune
@@ -48,8 +45,8 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 			}
 			return nil
 		}
-		if len(args) != 1 {
-			return fmt.Errorf("requires exactly 1 argument: branch name")
+		if len(args) < 1 || len(args) > 2 {
+			return fmt.Errorf("requires 1 or 2 arguments: branch name [base-branch]")
 		}
 		return nil
 	},
@@ -58,7 +55,11 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 		if worktreePrune {
 			err = runWorktreePrune()
 		} else {
-			err = runWorktree(args[0])
+			var baseBranch string
+			if len(args) > 1 {
+				baseBranch = args[1]
+			}
+			err = runWorktree(args[0], baseBranch)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -68,11 +69,10 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 }
 
 func init() {
-	worktreeCmd.Flags().BoolVar(&worktreeStack, "stack", false, "Create new branch with stack tracking (like 'stack new')")
 	worktreeCmd.Flags().BoolVar(&worktreePrune, "prune", false, "Remove worktrees for branches with merged PRs")
 }
 
-func runWorktree(branchName string) error {
+func runWorktree(branchName, baseBranch string) error {
 	// Get repo root
 	repoRoot, err := git.GetRepoRoot()
 	if err != nil {
@@ -92,45 +92,48 @@ func runWorktree(branchName string) error {
 		return fmt.Errorf("worktree already exists at %s", worktreePath)
 	}
 
-	if worktreeStack {
-		// Create new branch with stack tracking
-		return createStackWorktree(branchName, worktreePath)
+	// If base branch is specified, always create new branch from it
+	if baseBranch != "" {
+		return createNewBranchWorktree(branchName, baseBranch, worktreePath)
 	}
 
 	// Check if branch exists locally or on remote
 	return createWorktreeForExisting(branchName, worktreePath)
 }
 
-func createStackWorktree(branchName, worktreePath string) error {
+func createNewBranchWorktree(branchName, baseBranch, worktreePath string) error {
 	// Check if branch already exists
 	if git.BranchExists(branchName) {
 		return fmt.Errorf("branch %s already exists", branchName)
 	}
 
-	// Get current branch as parent
-	currentBranch, err := git.GetCurrentBranch()
-	if err != nil {
-		return fmt.Errorf("failed to get current branch: %w", err)
+	// Verify base branch exists (locally or on remote)
+	if !git.BranchExists(baseBranch) && !git.RemoteBranchExists(baseBranch) {
+		return fmt.Errorf("base branch %s does not exist locally or on remote", baseBranch)
 	}
 
-	parent := currentBranch
+	// Use origin/baseBranch if it's a remote branch to get fresh copy
+	baseRef := baseBranch
+	if git.RemoteBranchExists(baseBranch) {
+		baseRef = "origin/" + baseBranch
+	}
 
-	fmt.Printf("Creating new stack branch %s from %s\n", branchName, parent)
+	fmt.Printf("Creating new branch %s from %s\n", branchName, baseRef)
 
 	// Create worktree with new branch
-	if err := git.AddWorktreeNewBranch(worktreePath, branchName, parent); err != nil {
+	if err := git.AddWorktreeNewBranch(worktreePath, branchName, baseRef); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	// Set parent in git config
+	// Set parent in git config for stack tracking
 	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
-	if err := git.SetConfig(configKey, parent); err != nil {
+	if err := git.SetConfig(configKey, baseBranch); err != nil {
 		return fmt.Errorf("failed to set parent config: %w", err)
 	}
 
 	if !dryRun {
 		fmt.Printf("✓ Created worktree at %s\n", worktreePath)
-		fmt.Printf("✓ Branch %s with parent %s\n", branchName, parent)
+		fmt.Printf("✓ Branch %s with parent %s\n", branchName, baseBranch)
 	}
 
 	return nil
@@ -161,7 +164,7 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 		return nil
 	}
 
-	// Branch doesn't exist - create new branch from current HEAD
+	// Branch doesn't exist - create new branch from current branch with stack tracking
 	currentBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
@@ -171,8 +174,16 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 	if err := git.AddWorktreeNewBranch(worktreePath, branchName, currentBranch); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
+
+	// Set parent in git config for stack tracking
+	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
+	if err := git.SetConfig(configKey, currentBranch); err != nil {
+		return fmt.Errorf("failed to set parent config: %w", err)
+	}
+
 	if !dryRun {
-		fmt.Printf("✓ Created worktree at %s (new branch from %s)\n", worktreePath, currentBranch)
+		fmt.Printf("✓ Created worktree at %s\n", worktreePath)
+		fmt.Printf("✓ Branch %s with parent %s\n", branchName, currentBranch)
 	}
 	return nil
 }
