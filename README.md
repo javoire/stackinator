@@ -14,17 +14,26 @@ A minimal CLI tool for managing stacked branches and syncing them to GitHub Pull
 
 ### Prerequisites
 
-- [Go](https://golang.org/doc/install) 1.21 or later
 - [Git](https://git-scm.com/)
 - [GitHub CLI (`gh`)](https://cli.github.com/)
 
-### Install from Source
+### Homebrew (macOS/Linux)
+
+```bash
+brew install javoire/tap/stackinator
+```
+
+### Go Install
 
 ```bash
 go install github.com/javoire/stackinator@latest
 ```
 
-Or clone and build locally:
+### Download Binary
+
+Download pre-built binaries from the [releases page](https://github.com/javoire/stackinator/releases).
+
+### Build from Source
 
 ```bash
 git clone https://github.com/javoire/stackinator.git
@@ -261,13 +270,13 @@ To remove a branch from the stack (but keep the branch):
 git config --unset branch.my-branch.stackparent
 ```
 
-## Contributing
-
-Contributions welcome! See [docs/contributing.md](docs/contributing.md) for development setup and architecture details.
-
 ## License
 
 MIT
+
+## Contributing
+
+Contributions welcome! See [Contributing Guide](docs/contributing.md) for development setup and guidelines.
 
 ## Acknowledgments
 
