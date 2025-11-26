@@ -31,6 +31,9 @@ The tool helps you create, navigate, and sync stacked branches with minimal over
   # Sync all branches and update PRs
   stack sync
 
+  # Clean up merged branches
+  stack prune
+
   # Preview sync without executing
   stack sync --dry-run
 
@@ -62,6 +65,7 @@ func init() {
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(pruneCmd)
 	rootCmd.AddCommand(parentCmd)
 	rootCmd.AddCommand(renameCmd)
 	rootCmd.AddCommand(reparentCmd)
