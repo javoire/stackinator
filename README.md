@@ -293,54 +293,13 @@ To remove a branch from the stack (but keep the branch):
 git config --unset branch.my-branch.stackParent
 ```
 
-## Development
+## Contributing
 
-### Scripts
-
-The project includes several convenience scripts in the `scripts/` directory:
-
-```bash
-# Build the binary
-./scripts/build
-
-# Build and install (symlink to ~/bin)
-./scripts/install
-
-# Run tests
-./scripts/test
-
-# Clean build artifacts
-./scripts/clean
-```
-
-### Manual Build
-
-```bash
-go build -o stack
-```
-
-### Run Tests
-
-```bash
-go test ./...
-```
-
-## Roadmap
-
-- [x] Core commands: `new`, `status`, `sync`
-- [ ] Navigation commands: `up`, `down`
-- [ ] Better conflict handling
-- [ ] Integration tests
-- [ ] Homebrew formula
-- [ ] Pre-built binaries via goreleaser
+Contributions welcome! See [docs/contributing.md](docs/contributing.md) for development setup and architecture details.
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions welcome! Please open an issue or PR.
 
 ## Acknowledgments
 
