@@ -69,6 +69,7 @@ func init() {
 	rootCmd.AddCommand(parentCmd)
 	rootCmd.AddCommand(renameCmd)
 	rootCmd.AddCommand(reparentCmd)
+	rootCmd.AddCommand(worktreeCmd)
 }
 
 // Execute runs the root command
