@@ -1,0 +1,125 @@
+# GoReleaser configuration for stackinator
+# This file is used by GoReleaser to build and release the project
+
+version: 2
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+
+builds:
+  - main: ./main.go
+    binary: stack
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Don't build windows/arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/javoire/stackinator/cmd.version={{.Version}}
+      - -X github.com/javoire/stackinator/cmd.commit={{.Commit}}
+      - -X github.com/javoire/stackinator/cmd.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # Use zip for Windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+      - Merge pull request
+      - Merge branch
+
+# Homebrew tap configuration
+brews:
+  - name: stack
+    repository:
+      owner: javoire
+      name: homebrew-tap
+      # Branch defaults to main, but you can specify if different
+      # branch: main
+      # token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+
+    # Folder inside the repository to put the formula
+    directory: Formula
+
+    homepage: "https://github.com/javoire/stackinator"
+    description: "Minimal CLI tool for managing stacked branches and syncing them to GitHub Pull Requests"
+
+    # SPDX identifier of your app's license
+    license: "MIT"
+
+    # Setting this will prevent goreleaser to actually try to commit the updated
+    # formula - useful if you want to do this manually or use a different approach.
+    skip_upload: false
+
+    # Dependencies
+    dependencies:
+      - name: git
+      - name: gh
+
+    # Install instructions
+    install: |
+      bin.install "stack"
+
+    # Test the installation
+    test: |
+      system "#{bin}/stack", "--version"
+
+    # Custom download strategy if needed
+    # download_strategy: CurlDownloadStrategy
+
+# GitHub Release configuration
+release:
+  github:
+    owner: javoire
+    name: stackinator
+
+  # If set to true, will not auto-publish the release
+  draft: false
+
+  # If set to auto, will mark the release as not ready for production
+  # in case there is an indicator for this in the tag e.g. v1.0.0-rc1
+  prerelease: auto
+
+  # You can change the name of the release
+  name_template: "{{.ProjectName}}-v{{.Version}}"
+
+  # You can disable this pipe in order to not create a release on GitHub
+  disable: false
