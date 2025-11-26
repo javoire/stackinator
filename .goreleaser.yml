@@ -5,7 +5,6 @@ version: 2
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
 
 builds:
@@ -31,18 +30,13 @@ builds:
       - -X github.com/javoire/stackinator/cmd.date={{.Date}}
 
 archives:
-  - format: tar.gz
-    name_template: >-
+  - name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # Use zip for Windows archives
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - LICENSE*
       - README*
@@ -52,7 +46,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
@@ -72,9 +66,8 @@ brews:
     repository:
       owner: javoire
       name: homebrew-tap
-      # Branch defaults to main, but you can specify if different
-      # branch: main
-      # token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      branch: main
+      token: "{{ .Env.BREW_TAP_TOKEN }}"
 
     # Folder inside the repository to put the formula
     directory: Formula
