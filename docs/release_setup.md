@@ -1,33 +1,61 @@
 # Release Process
 
-This project uses [GoReleaser](https://goreleaser.com/) for automated releases. When you push a tag, GitHub Actions automatically builds binaries and updates the Homebrew tap.
+This project uses [semantic-release](https://semantic-release.gitbook.io/) for automated versioning and [GoReleaser](https://goreleaser.com/) for building and distributing releases.
 
-## Creating a Release
+## Automated Releases (Recommended)
 
-1. Ensure all changes are committed and pushed to main:
+Releases are **automatically created** when you merge PRs to `main` using [conventional commits](https://www.conventionalcommits.org/):
 
-   ```bash
-   git checkout main
-   git pull origin main
-   ```
+### Commit Message Format
 
-2. Create and push an annotated tag:
+- `feat: add new feature` → Minor version bump (0.1.0 → 0.2.0)
+- `fix: resolve bug` → Patch version bump (0.1.0 → 0.1.1)
+- `perf: improve performance` → Patch version bump
+- `docs: update documentation` → No release
+- `chore: update dependencies` → No release
+- `ci: update workflows` → No release
 
-   ```bash
-   git tag -a v0.1.0 -m "Release v0.1.0"
-   git push origin v0.1.0
-   ```
+### Breaking Changes
 
-3. GitHub Actions will automatically:
+Add `BREAKING CHANGE:` in the commit body for major version bumps (0.1.0 → 1.0.0):
 
-   - Build binaries for macOS, Linux, and Windows
-   - Create a GitHub release with all artifacts
-   - Update the Homebrew tap at `javoire/homebrew-tap`
+```
+feat: redesign CLI interface
 
-4. Verify the release:
-   - Check the **Actions** tab to watch the workflow
-   - Verify the GitHub **Releases** page has the new release
-   - Check `javoire/homebrew-tap` for the updated formula
+BREAKING CHANGE: command structure has changed
+```
+
+### The Workflow
+
+1. **Merge PR to main** with semantic commit messages
+2. **Semantic-release automatically**:
+   - Analyzes commits since last release
+   - Determines version bump
+   - Creates and pushes a git tag (e.g., `v0.2.0`)
+   - Updates `CHANGELOG.md`
+3. **GoReleaser automatically** (triggered by tag):
+   - Builds binaries for macOS, Linux, and Windows
+   - Creates a GitHub release with artifacts
+   - Updates the Homebrew tap at `javoire/homebrew-tap`
+
+### Verify the Release
+
+- Check the **Actions** tab for workflow status
+- Verify the **Releases** page has the new version
+- Check `javoire/homebrew-tap` for the updated formula
+
+## Manual Release (Alternative)
+
+If you need to create a release manually:
+
+```bash
+git checkout main
+git pull origin main
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+This triggers the GoReleaser workflow directly.
 
 ## Testing Locally
 
