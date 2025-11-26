@@ -192,23 +192,23 @@ git pull
 
 # Create feature branch
 stack new auth-system
-# ... make changes, commit ..., create PR...
+# ... make changes, commit, create PR
 
 # Create sub-feature 1
 stack new auth-login
-# ... make changes, commit ...
+# ... make changes, commit, create PR
 
 # Create sub-feature 2
 git checkout auth-system  # go back to parent
 stack new auth-logout
-# ... make changes, commit ...
+# ... make changes, commit, create PR
 
 # View structure
 stack status
 # Output:
 #  main
 #   |
-#  auth-system [https://github.com/you/repo/pull/10 :open]
+#  auth-system [https://github.com/you/repo/pull/10 :merged]
 #   |
 #  auth-login [https://github.com/you/repo/pull/11 :open]
 #   |

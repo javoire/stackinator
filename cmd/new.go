@@ -17,7 +17,7 @@ var newCmd = &cobra.Command{
 	Long: `Create a new branch in the stack, optionally specifying a parent branch.
 
 The new branch will be created from the specified parent (or current branch if not specified),
-and the parent relationship will be stored in git config (branch.<name>.stackParent).
+and the parent relationship will be stored in git config (branch.<name>.stackparent).
 
 If no parent is specified and you're not on a stack branch, the base branch (default: main)
 will be used as the parent.`,
