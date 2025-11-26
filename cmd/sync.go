@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
@@ -98,13 +99,24 @@ func runSync() error {
 	fmt.Println("Syncing stack...")
 	fmt.Println()
 
-	// Fetch from origin
-	if err := spinner.WrapWithSuccess("Fetching from origin...", "Fetched from origin", func() error {
-		return git.Fetch()
-	}); err != nil {
-		return fmt.Errorf("failed to fetch: %w", err)
-	}
+	// Start parallel fetch operations (git fetch and GitHub PR fetch)
+	// These are the slowest operations and have no dependencies between them
+	var wg sync.WaitGroup
+	var fetchErr error
+	var prCache map[string]*github.PRInfo
+	var prErr error
 
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		fetchErr = git.Fetch()
+	}()
+	go func() {
+		defer wg.Done()
+		prCache, prErr = github.GetAllPRs()
+	}()
+
+	// While network operations run in background, do local work
 	// Get only branches in the current branch's stack
 	chain, err := stack.GetStackChain(originalBranch)
 	if err != nil {
@@ -112,6 +124,8 @@ func runSync() error {
 	}
 
 	if len(chain) == 0 {
+		// Wait for parallel operations before returning
+		wg.Wait()
 		fmt.Println("No stack branches found.")
 		return nil
 	}
@@ -174,18 +188,28 @@ func runSync() error {
 		}
 	}
 
-	fmt.Printf("Processing %d branch(es)...\n\n", len(sorted))
-
-	// Fetch all PRs upfront for better performance
-	var prCache map[string]*github.PRInfo
-	if err := spinner.Wrap("Fetching PR information...", func() error {
-		var err error
-		prCache, err = github.GetAllPRs()
-		return err
+	// Wait for parallel network operations to complete
+	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "Fetched from origin and loaded PRs", func() error {
+		wg.Wait()
+		return nil
 	}); err != nil {
-		// If fetching PRs fails, fall back to empty cache
+		return err
+	}
+
+	// Check for fetch errors
+	if fetchErr != nil {
+		return fmt.Errorf("failed to fetch: %w", fetchErr)
+	}
+
+	// Handle PR fetch errors gracefully
+	if prErr != nil {
 		prCache = make(map[string]*github.PRInfo)
 	}
+
+	// Get all remote branches in one call (more efficient than checking each branch individually)
+	remoteBranches := git.GetRemoteBranchesSet()
+
+	fmt.Printf("Processing %d branch(es)...\n\n", len(sorted))
 
 	// Build a set of stack branch names for quick lookup
 	stackBranchSet := make(map[string]bool)
@@ -246,7 +270,8 @@ func runSync() error {
 
 		// Sync with remote branch if it exists (unless --force is set)
 		remoteBranch := "origin/" + branch.Name
-		if git.RemoteBranchExists(branch.Name) && !syncForce {
+		branchExistsOnRemote := remoteBranches[branch.Name]
+		if branchExistsOnRemote && !syncForce {
 			// Check if local and remote have diverged
 			localHash, err := git.GetCommitHash(branch.Name)
 			if err != nil {
@@ -293,7 +318,7 @@ func runSync() error {
 			} else if git.Verbose {
 				fmt.Printf("  Local branch is up-to-date with origin/%s\n", branch.Name)
 			}
-		} else if syncForce && git.RemoteBranchExists(branch.Name) {
+		} else if syncForce && branchExistsOnRemote {
 			if git.Verbose {
 				fmt.Printf("  Skipping divergence check (--force enabled)\n")
 			}
@@ -330,7 +355,7 @@ func runSync() error {
 		}
 
 		// Push to origin - only if the branch already exists remotely
-		if git.RemoteBranchExists(branch.Name) {
+		if branchExistsOnRemote {
 			pushErr := spinner.WrapWithSuccess(
 				"  Pushing to origin...",
 				"  Pushed to origin",
@@ -400,8 +425,8 @@ func runSync() error {
 
 	fmt.Println()
 
-	// Display the updated stack status
-	if err := displayStatusAfterSync(); err != nil {
+	// Display the updated stack status (reuse prCache to avoid redundant API call)
+	if err := displayStatusAfterSync(prCache); err != nil {
 		// Don't fail if we can't display status, just warn
 		fmt.Fprintf(os.Stderr, "Warning: failed to display stack status: %v\n", err)
 	}
@@ -426,7 +451,8 @@ func runSync() error {
 }
 
 // displayStatusAfterSync shows the stack tree after a successful sync
-func displayStatusAfterSync() error {
+// It reuses the prCache from earlier to avoid a redundant API call
+func displayStatusAfterSync(prCache map[string]*github.PRInfo) error {
 	currentBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
@@ -436,17 +462,6 @@ func displayStatusAfterSync() error {
 	if err != nil {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
-
-	// Fetch all PRs for display
-	var prCache map[string]*github.PRInfo
-	spinner.Wrap("Fetching PR information...", func() error {
-		var err error
-		prCache, err = github.GetAllPRs()
-		if err != nil {
-			prCache = make(map[string]*github.PRInfo)
-		}
-		return nil
-	})
 
 	// Filter out branches with merged PRs (leaf nodes only)
 	tree = filterMergedBranchesForSync(tree, prCache)
