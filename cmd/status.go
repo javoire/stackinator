@@ -384,15 +384,14 @@ func printSyncIssues(result *syncIssuesResult) {
 		// Also mention merged branches if any
 		if len(result.mergedBranches) > 0 {
 			fmt.Println()
-			fmt.Printf("After syncing, clean up merged branches: %s\n", strings.Join(result.mergedBranches, ", "))
-			fmt.Printf("  git branch -D %s\n", strings.Join(result.mergedBranches, " "))
+			fmt.Printf("After syncing, clean up merged branches with 'stack prune': %s\n", strings.Join(result.mergedBranches, ", "))
 		}
 	} else if len(result.mergedBranches) > 0 {
-		// Stack is synced but has merged branches to clean up
+		// Merged branches need cleanup via prune
 		fmt.Println()
-		fmt.Printf("✓ Stack is synced. Merged branches can be cleaned up: %s\n", strings.Join(result.mergedBranches, ", "))
+		fmt.Printf("⚠ Merged branches need cleanup: %s\n", strings.Join(result.mergedBranches, ", "))
 		fmt.Println()
-		fmt.Printf("  git branch -D %s\n", strings.Join(result.mergedBranches, " "))
+		fmt.Println("Run 'stack prune' to remove merged branches.")
 	} else {
 		// Everything is perfectly synced
 		fmt.Println()
