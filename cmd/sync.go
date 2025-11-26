@@ -215,9 +215,13 @@ func runSync() error {
 
 		// Check if parent PR is merged
 		parentUpdated := false
+		oldParent := "" // Track old parent for --onto rebase
 		parentPR := prCache[branch.Parent]
 		if parentPR != nil && parentPR.State == "MERGED" {
 			fmt.Printf("  Parent PR #%d has been merged\n", parentPR.Number)
+
+			// Save old parent for --onto rebase
+			oldParent = branch.Parent
 
 			// Update parent to grandparent
 			grandparent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", branch.Parent))
@@ -307,10 +311,17 @@ func runSync() error {
 		}
 
 		// Rebase onto parent
+		// If parent was just merged (oldParent set), use --onto to exclude old parent's commits
 		if err := spinner.WrapWithSuccess(
 			fmt.Sprintf("  Rebasing onto %s...", rebaseTarget),
 			fmt.Sprintf("  Rebased onto %s", rebaseTarget),
 			func() error {
+				if oldParent != "" {
+					// Parent was merged - use --onto to handle squash merge
+					// This excludes commits from oldParent that are now in rebaseTarget
+					fmt.Printf("  Using --onto to handle squash merge (excluding commits from %s)\n", oldParent)
+					return git.RebaseOnto(rebaseTarget, oldParent, branch.Name)
+				}
 				return git.Rebase(rebaseTarget)
 			},
 		); err != nil {
