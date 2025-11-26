@@ -465,3 +465,64 @@ func DeleteBranchForce(name string) error {
 	_, err := runCmd("branch", "-D", name)
 	return err
 }
+
+// AddWorktree creates a worktree at the specified path for an existing local branch
+func AddWorktree(path, branch string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git worktree add %s %s\n", path, branch)
+		return nil
+	}
+	_, err := runCmd("worktree", "add", path, branch)
+	return err
+}
+
+// AddWorktreeNewBranch creates a worktree with a new branch at the specified path
+// The new branch is created from the given base branch
+func AddWorktreeNewBranch(path, newBranch, baseBranch string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git worktree add -b %s %s %s\n", newBranch, path, baseBranch)
+		return nil
+	}
+	_, err := runCmd("worktree", "add", "-b", newBranch, path, baseBranch)
+	return err
+}
+
+// AddWorktreeFromRemote creates a worktree tracking a remote branch
+// This creates a local branch that tracks the remote branch
+func AddWorktreeFromRemote(path, branch string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git worktree add --track -b %s %s origin/%s\n", branch, path, branch)
+		return nil
+	}
+	_, err := runCmd("worktree", "add", "--track", "-b", branch, path, "origin/"+branch)
+	return err
+}
+
+// RemoveWorktree removes a worktree at the specified path
+func RemoveWorktree(path string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git worktree remove %s\n", path)
+		return nil
+	}
+	_, err := runCmd("worktree", "remove", path)
+	return err
+}
+
+// ListWorktrees returns a list of all worktree paths
+func ListWorktrees() ([]string, error) {
+	output := runCmdMayFail("worktree", "list", "--porcelain")
+	if output == "" {
+		return []string{}, nil
+	}
+
+	var paths []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "worktree ") {
+			path := strings.TrimPrefix(line, "worktree ")
+			paths = append(paths, path)
+		}
+	}
+
+	return paths, nil
+}
