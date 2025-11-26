@@ -166,6 +166,18 @@ func Rebase(onto string) error {
 	return err
 }
 
+// RebaseOnto rebases the current branch onto newBase, excluding commits up to and including oldBase
+// This is useful for handling squash merges where oldBase was squashed into newBase
+// Equivalent to: git rebase --onto newBase oldBase currentBranch
+func RebaseOnto(newBase, oldBase, currentBranch string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git rebase --autostash --onto %s %s %s\n", newBase, oldBase, currentBranch)
+		return nil
+	}
+	_, err := runCmd("rebase", "--autostash", "--onto", newBase, oldBase, currentBranch)
+	return err
+}
+
 // FetchBranch fetches a specific branch from origin to update tracking info
 func FetchBranch(branch string) error {
 	if DryRun {
