@@ -65,7 +65,7 @@ git commit -m "Add feature 2"
 stack status
 ```
 
-Output:
+Output (without PRs):
 
 ```
  main
@@ -75,23 +75,19 @@ Output:
  feature-2 *
 ```
 
-The `*` indicates your current branch.
+Output (with PRs created):
 
-### 3. Create Pull Requests
-
-Create PRs manually using `gh`:
-
-```bash
-# Switch to first branch and create PR
-git checkout feature-1
-gh pr create --base main --title "Feature 1" --body "Description"
-
-# Switch to second branch and create PR
-git checkout feature-2
-gh pr create --base feature-1 --title "Feature 2" --body "Description"
+```
+ main
+  |
+ feature-1 [https://github.com/you/repo/pull/1 :open]
+  |
+ feature-2 [https://github.com/you/repo/pull/2 :open] *
 ```
 
-### 4. Sync Everything
+The `*` indicates your current branch.
+
+### 3. Sync Everything
 
 After making changes or when the base branch is updated:
 
@@ -103,7 +99,7 @@ This will:
 
 - Fetch latest changes from origin
 - Rebase each branch onto its parent (in order)
-- Force push all branches
+- Force (with lease) push all branches
 - Update PR base branches to match the stack
 - Handle merged parent PRs automatically
 
@@ -157,10 +153,10 @@ Stackinator stores the parent of each branch in git config:
 
 ```bash
 # View parent of current branch
-git config branch.feature-1.stackParent
+git config branch.feature-1.stackparent
 
 # Manually set parent (if needed)
-git config branch.feature-1.stackParent main
+git config branch.feature-1.stackparent main
 ```
 
 This minimal approach means:
@@ -183,25 +179,7 @@ When you run `stack sync`, Stackinator:
    - Force pushes to origin
    - Updates PR base branch (if PR exists)
 
-### PR Management
-
-**Important**: Stackinator does NOT create PRs for you. You create PRs manually using `gh pr create` or the GitHub web interface.
-
-Stackinator will:
-
-- ✅ Update PR base branches when stack changes
-- ✅ Detect when parent PRs are merged
-- ✅ Show PR status in `stack status`
-
 ## Configuration
-
-### Base Branch
-
-By default, Stackinator uses `main` as the base branch. To change it:
-
-```bash
-git config stack.baseBranch develop
-```
 
 ## Examples
 
@@ -214,7 +192,7 @@ git pull
 
 # Create feature branch
 stack new auth-system
-# ... make changes, commit ...
+# ... make changes, commit ..., create PR...
 
 # Create sub-feature 1
 stack new auth-login
@@ -230,21 +208,11 @@ stack status
 # Output:
 #  main
 #   |
-#  auth-system
+#  auth-system [https://github.com/you/repo/pull/10 :open]
 #   |
-#  auth-login
+#  auth-login [https://github.com/you/repo/pull/11 :open]
 #   |
-#  auth-logout *
-
-# Create PRs
-git checkout auth-system
-gh pr create --base main --title "Auth System" --body "..."
-
-git checkout auth-login
-gh pr create --base auth-system --title "Add login" --body "..."
-
-git checkout auth-logout
-gh pr create --base auth-system --title "Add logout" --body "..."
+#  auth-logout [https://github.com/you/repo/pull/12 :open] *
 
 # Later, after making changes or when main updates
 stack sync
@@ -282,7 +250,7 @@ If you delete a parent branch, child branches become orphaned. To fix:
 
 ```bash
 # Update the child's parent to point to the grandparent
-git config branch.child-branch.stackParent main
+git config branch.child-branch.stackparent main
 ```
 
 ### Remove from Stack
@@ -290,7 +258,7 @@ git config branch.child-branch.stackParent main
 To remove a branch from the stack (but keep the branch):
 
 ```bash
-git config --unset branch.my-branch.stackParent
+git config --unset branch.my-branch.stackparent
 ```
 
 ## Contributing
