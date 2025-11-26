@@ -346,6 +346,6 @@ Contributions welcome! Please open an issue or PR.
 
 Inspired by:
 
+- [Charcoal](https://github.com/danerwilliams/charcoal)
 - [Graphite](https://graphite.dev/)
-- [Sapling](https://sapling-scm.com/)
 - [git-stack](https://github.com/gitext-rs/git-stack)

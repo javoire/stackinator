@@ -306,7 +306,7 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 			}
 		}
 
-		// Check if PR base matches the configured parent
+		// Check if PR base matches the configured parent (if PR exists)
 		if pr, exists := prCache[branch.Name]; exists {
 			if verbose {
 				fmt.Printf("  Found PR #%d (base: %s, state: %s)\n", pr.Number, pr.Base, pr.State)
@@ -320,25 +320,24 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 			} else if verbose {
 				fmt.Printf("  ✓ PR base matches configured parent\n")
 			}
-
-			// Check if branch is behind its base (needs rebase)
-			// Use git to check if there are commits on the base that aren't on this branch
-			if verbose {
-				fmt.Printf("  Checking if branch is behind %s...\n", pr.Base)
-			}
-			behind, err := git.IsCommitsBehind(branch.Name, pr.Base)
-			if err == nil && behind {
-				if verbose {
-					fmt.Printf("  ✗ Branch is behind %s (needs rebase)\n", pr.Base)
-				}
-				issues = append(issues, fmt.Sprintf("  - Branch '%s' is behind %s (needs rebase)", branch.Name, pr.Base))
-			} else if err == nil && verbose {
-				fmt.Printf("  ✓ Branch is up to date with %s\n", pr.Base)
-			} else if err != nil && verbose {
-				fmt.Printf("  ⚠ Could not check if branch is behind: %v\n", err)
-			}
 		} else if verbose {
 			fmt.Printf("  No PR found for this branch\n")
+		}
+
+		// Check if branch is behind its parent (needs rebase) - always check this regardless of PR
+		if verbose {
+			fmt.Printf("  Checking if branch is behind parent %s...\n", branch.Parent)
+		}
+		behind, err := git.IsCommitsBehind(branch.Name, branch.Parent)
+		if err == nil && behind {
+			if verbose {
+				fmt.Printf("  ✗ Branch is behind %s (needs rebase)\n", branch.Parent)
+			}
+			issues = append(issues, fmt.Sprintf("  - Branch '%s' is behind %s (needs rebase)", branch.Name, branch.Parent))
+		} else if err == nil && verbose {
+			fmt.Printf("  ✓ Branch is up to date with %s\n", branch.Parent)
+		} else if err != nil && verbose {
+			fmt.Printf("  ⚠ Could not check if branch is behind: %v\n", err)
 		}
 	}
 
