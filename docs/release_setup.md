@@ -2,16 +2,6 @@
 
 This project uses [GoReleaser](https://goreleaser.com/) for automated releases. When you push a tag, GitHub Actions automatically builds binaries and updates the Homebrew tap.
 
-## Prerequisites
-
-Create a public repository on GitHub named `homebrew-tap`:
-
-- Repository: `javoire/homebrew-tap`
-- Make it public
-- No need to initialize with files
-
-GoReleaser will create the formula automatically on the first release.
-
 ## Creating a Release
 
 1. Ensure all changes are committed and pushed to main:
