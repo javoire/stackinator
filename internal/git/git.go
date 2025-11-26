@@ -249,6 +249,31 @@ func RemoteBranchExists(name string) bool {
 	return output != ""
 }
 
+// GetRemoteBranchesSet fetches all remote branches from origin in one call
+// and returns a set (map[string]bool) for efficient lookups.
+// This is more efficient than calling RemoteBranchExists multiple times.
+func GetRemoteBranchesSet() map[string]bool {
+	output := runCmdMayFail("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/")
+	if output == "" {
+		return make(map[string]bool)
+	}
+
+	branches := make(map[string]bool)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Remove "origin/" prefix to get just the branch name
+		if strings.HasPrefix(line, "origin/") {
+			branchName := strings.TrimPrefix(line, "origin/")
+			branches[branchName] = true
+		}
+	}
+
+	return branches
+}
+
 // AbortRebase aborts an in-progress rebase
 func AbortRebase() error {
 	if DryRun {

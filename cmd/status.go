@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/javoire/stackinator/internal/git"
@@ -56,7 +57,34 @@ func runStatus() error {
 	var tree *stack.TreeNode
 	var allTreeBranches []string
 
-	// Build the stack tree (wrapped in spinner for slow repos)
+	// Start fetch and PR loading in parallel with stack tree building (if not --no-pr)
+	// These are the slowest operations and can run while we build the tree
+	var wg sync.WaitGroup
+	var prCache map[string]*github.PRInfo
+	var prErr error
+	fetchDone := false
+
+	if !noPR {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			prCache, prErr = github.GetAllPRs()
+			if prErr != nil {
+				// If fetching fails, fall back to empty cache
+				prCache = make(map[string]*github.PRInfo)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			// Fetch latest changes from origin (needed for sync issue detection)
+			_ = git.Fetch()
+			fetchDone = true
+		}()
+	} else {
+		prCache = make(map[string]*github.PRInfo)
+	}
+
+	// Build the stack tree (runs in parallel with PR fetch)
 	if err := spinner.WrapWithAutoDelay("Loading stack...", 300*time.Millisecond, func() error {
 		// Get current branch
 		var err error
@@ -89,26 +117,17 @@ func runStatus() error {
 	}
 
 	if len(stackBranches) == 0 {
+		// Wait for PR fetch to complete before returning
+		wg.Wait()
 		fmt.Println("No stack branches found.")
 		fmt.Printf("Current branch: %s\n", currentBranch)
 		fmt.Println("\nUse 'stack new <branch-name>' to create a new stack branch.")
 		return nil
 	}
 
-	// Fetch PRs for all branches (one API call for all PRs)
-	var prCache map[string]*github.PRInfo
-	if noPR {
-		prCache = make(map[string]*github.PRInfo)
-	} else {
-		spinner.Wrap("Fetching PR information...", func() error {
-			var err error
-			prCache, err = github.GetAllPRs()
-			if err != nil {
-				// If fetching fails, fall back to empty cache
-				prCache = make(map[string]*github.PRInfo)
-			}
-			return nil
-		})
+	// Wait for PR fetch to complete (if running)
+	if !noPR {
+		wg.Wait()
 	}
 
 	// Filter out branches with merged PRs from the tree (but keep current branch)
@@ -135,7 +154,7 @@ func runStatus() error {
 		var syncResult *syncIssuesResult
 		if err := spinner.WrapWithAutoDelayAndProgress("Checking for sync issues...", 300*time.Millisecond, func(progress spinner.ProgressFunc) error {
 			var err error
-			syncResult, err = detectSyncIssues(treeBranches, prCache, progress)
+			syncResult, err = detectSyncIssues(treeBranches, prCache, progress, fetchDone)
 			return err
 		}); err != nil {
 			// Don't fail on detection errors, just skip the check
@@ -262,16 +281,19 @@ type syncIssuesResult struct {
 }
 
 // detectSyncIssues checks if any branches are out of sync and returns the issues (doesn't print)
-func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*github.PRInfo, progress spinner.ProgressFunc) (*syncIssuesResult, error) {
+// If skipFetch is true, assumes git fetch was already called (to avoid redundant network calls)
+func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*github.PRInfo, progress spinner.ProgressFunc, skipFetch bool) (*syncIssuesResult, error) {
 	var issues []string
 	var mergedBranches []string
 
-	// Fetch once upfront to ensure we have latest remote refs (instead of fetching per branch)
-	progress("Fetching latest changes...")
-	if verbose {
-		fmt.Println("Fetching latest changes from origin...")
+	// Fetch once upfront to ensure we have latest remote refs (unless already done)
+	if !skipFetch {
+		progress("Fetching latest changes...")
+		if verbose {
+			fmt.Println("Fetching latest changes from origin...")
+		}
+		_ = git.Fetch()
 	}
-	_ = git.Fetch()
 
 	if verbose {
 		fmt.Printf("Checking %d branch(es) for sync issues...\n", len(stackBranches))
