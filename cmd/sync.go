@@ -329,22 +329,22 @@ func runSync() error {
 			return err
 		}
 
-		// Push to origin - FAIL FAST if this fails
-		pushErr := spinner.WrapWithSuccess(
-			"  Pushing to origin...",
-			"  Pushed to origin",
-			func() error {
-				if syncForce {
-					// Use regular --force (bypasses --force-with-lease safety checks)
-					if git.Verbose {
-						fmt.Printf("  Using --force (bypassing safety checks)\n")
+		// Push to origin - only if the branch already exists remotely
+		if git.RemoteBranchExists(branch.Name) {
+			pushErr := spinner.WrapWithSuccess(
+				"  Pushing to origin...",
+				"  Pushed to origin",
+				func() error {
+					if syncForce {
+						// Use regular --force (bypasses --force-with-lease safety checks)
+						if git.Verbose {
+							fmt.Printf("  Using --force (bypassing safety checks)\n")
+						}
+						return git.ForcePush(branch.Name)
 					}
-					return git.ForcePush(branch.Name)
-				}
 
-				// Fetch one more time right before push to ensure --force-with-lease has fresh tracking info
-				// This prevents "stale info" errors if the remote was updated during our rebase
-				if git.RemoteBranchExists(branch.Name) {
+					// Fetch one more time right before push to ensure --force-with-lease has fresh tracking info
+					// This prevents "stale info" errors if the remote was updated during our rebase
 					if git.Verbose {
 						fmt.Printf("  Refreshing remote tracking ref before push...\n")
 					}
@@ -354,20 +354,22 @@ func runSync() error {
 							fmt.Fprintf(os.Stderr, "  Note: could not refresh tracking ref: %v\n", err)
 						}
 					}
+
+					// Use --force-with-lease (safe force push)
+					return git.Push(branch.Name, true)
+				},
+			)
+
+			if pushErr != nil {
+				if !syncForce {
+					fmt.Fprintf(os.Stderr, "\nPossible causes:\n")
+					fmt.Fprintf(os.Stderr, "  1. Remote branch was updated by someone else - try running 'stack sync' again\n")
+					fmt.Fprintf(os.Stderr, "  2. Your local branch has diverged from remote - use 'stack sync --force'\n")
 				}
-
-				// Use --force-with-lease (safe force push)
-				return git.Push(branch.Name, true)
-			},
-		)
-
-		if pushErr != nil {
-			if !syncForce {
-				fmt.Fprintf(os.Stderr, "\nPossible causes:\n")
-				fmt.Fprintf(os.Stderr, "  1. Remote branch was updated by someone else - try running 'stack sync' again\n")
-				fmt.Fprintf(os.Stderr, "  2. Your local branch has diverged from remote - use 'stack sync --force'\n")
+				return fmt.Errorf("push failed for %s", branch.Name)
 			}
-			return fmt.Errorf("push failed for %s", branch.Name)
+		} else {
+			fmt.Printf("  Skipping push (branch not yet on origin)\n")
 		}
 
 		// Check if PR exists and update base if needed
