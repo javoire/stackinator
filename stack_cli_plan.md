@@ -15,7 +15,7 @@ Goal: Implement a Go CLI that manages **stacks of branches** and **syncs them to
 - **Process execution**: call `git` and `gh` (GitHub CLI) via `os/exec`.
 - **State storage**:
   - **Extremely minimal**: store parent branch in git config per branch
-  - Example: `git config branch.st/feature-1.stackParent main`
+  - Example: `git config branch.st/feature-1.stackparent main`
   - No state files, no JSON, no complex persistence
   - Stack structure is derived on-demand from git config + git branch list
 - **GitHub integration**:
@@ -30,7 +30,7 @@ Define these core types / concepts:
 - **Stack**: A chain of branches where each branch depends on one parent branch.
   - Derived dynamically from git config, not stored explicitly.
 - **Stack Branch**:
-  - Any branch with `branch.<name>.stackParent` set in git config
+  - Any branch with `branch.<name>.stackparent` set in git config
   - Parent can be `main` or another stack branch
   - No stored metadata beyond parent relationship
 - **Base branch**:
@@ -46,7 +46,7 @@ Define these core types / concepts:
 
 No persistent state files. All state is derived from:
 
-1. **Git config**: `git config branch.<name>.stackParent <parent>`
+1. **Git config**: `git config branch.<name>.stackparent <parent>`
 2. **Git branches**: `git branch --list`
 3. **GitHub state**: PR numbers/status fetched via `gh` when needed
 
@@ -63,7 +63,7 @@ type StackBranch struct {
 Stack is built by:
 
 - List all branches
-- For each branch, check if `branch.<name>.stackParent` exists
+- For each branch, check if `branch.<name>.stackparent` exists
 - Build tree from parent relationships
 
 ---
@@ -132,7 +132,7 @@ func GetStackBranches() []StackBranch {
     var stackBranches []StackBranch
 
     for _, branch := range branches {
-        parent := git.GetConfig("branch." + branch + ".stackParent")
+        parent := git.GetConfig("branch." + branch + ".stackparent")
         if parent != "" {
             stackBranches = append(stackBranches, StackBranch{
                 Name: branch,
@@ -157,7 +157,7 @@ All mutation commands respect `--dry-run` flag - print planned actions without e
 1. Check working tree is clean
 2. Determine parent = current branch (or `main` if not in stack)
 3. `git checkout -b <name> <parent>`
-4. `git config branch.<name>.stackParent <parent>`
+4. `git config branch.<name>.stackparent <parent>`
 
 ### Full sync (`stack sync`)
 
