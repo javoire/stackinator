@@ -418,3 +418,25 @@ func IsCommitsBehind(branch, base string) (bool, error) {
 	// We only care if behind count > 0
 	return parts[1] != "0", nil
 }
+
+// DeleteBranch deletes a branch safely (equivalent to git branch -d)
+// This will fail if the branch has unmerged commits
+func DeleteBranch(name string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git branch -d %s\n", name)
+		return nil
+	}
+	_, err := runCmd("branch", "-d", name)
+	return err
+}
+
+// DeleteBranchForce force deletes a branch (equivalent to git branch -D)
+// This will delete the branch even if it has unmerged commits
+func DeleteBranchForce(name string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git branch -D %s\n", name)
+		return nil
+	}
+	_, err := runCmd("branch", "-D", name)
+	return err
+}
