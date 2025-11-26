@@ -20,8 +20,7 @@ A minimal CLI tool for managing stacked branches and syncing them to GitHub Pull
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew tap javoire/tap
-brew install stack
+brew install javoire/tap/stackinator
 ```
 
 ### Go Install
