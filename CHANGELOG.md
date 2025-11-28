@@ -1,3 +1,14 @@
+## [1.1.0](https://github.com/javoire/stackinator/compare/v1.0.3...v1.1.0) (2025-11-28)
+
+### Features
+
+* add unit testing with mocked git and github CLIs ([99ada61](https://github.com/javoire/stackinator/commit/99ada61669833e27d18609c8ae5ab6c118ffee2c))
+
+### Bug Fixes
+
+* update test mocks to handle variable call counts ([e35eb25](https://github.com/javoire/stackinator/commit/e35eb25a80fad631ef087ae431f220a9e55e4a97))
+* use .Maybe() for GetAllStackParents in sync tests ([2f7ee9f](https://github.com/javoire/stackinator/commit/2f7ee9f4aebc8616cdf19fc0192ab942bbe33fa0))
+
 ## [1.0.3](https://github.com/javoire/stackinator/compare/v1.0.2...v1.0.3) (2025-11-28)
 
 ### Bug Fixes
