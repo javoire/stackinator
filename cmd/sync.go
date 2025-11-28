@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -96,6 +97,36 @@ func runSync() error {
 		}
 	}()
 
+	// Check if current branch is in a stack BEFORE doing any network operations
+	// This allows us to prompt the user immediately if needed
+	baseBranch := stack.GetBaseBranch()
+	parent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", originalBranch))
+
+	if parent == "" && originalBranch != baseBranch {
+		fmt.Printf("Branch '%s' is not in a stack.\n", originalBranch)
+		fmt.Printf("Add it with parent '%s'? [Y/n] ", baseBranch)
+
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+
+		input = strings.TrimSpace(strings.ToLower(input))
+		if input != "" && input != "y" && input != "yes" {
+			fmt.Println("Aborted.")
+			return nil
+		}
+
+		// Set the parent
+		configKey := fmt.Sprintf("branch.%s.stackparent", originalBranch)
+		if err := git.SetConfig(configKey, baseBranch); err != nil {
+			return fmt.Errorf("failed to set parent: %w", err)
+		}
+		fmt.Printf("✓ Added '%s' to stack with parent '%s'\n", originalBranch, baseBranch)
+	}
+
+	fmt.Println()
 	fmt.Println("Syncing stack...")
 	fmt.Println()
 

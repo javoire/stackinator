@@ -134,6 +134,7 @@ func createNewBranchWorktree(branchName, baseBranch, worktreePath string) error 
 	if !dryRun {
 		fmt.Printf("✓ Created worktree at %s\n", worktreePath)
 		fmt.Printf("✓ Branch %s with parent %s\n", branchName, baseBranch)
+		fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
 	}
 
 	return nil
@@ -148,6 +149,7 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 		}
 		if !dryRun {
 			fmt.Printf("✓ Created worktree at %s\n", worktreePath)
+			fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
 		}
 		return nil
 	}
@@ -160,6 +162,7 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 		}
 		if !dryRun {
 			fmt.Printf("✓ Created worktree at %s (tracking origin/%s)\n", worktreePath, branchName)
+			fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
 		}
 		return nil
 	}
@@ -184,6 +187,7 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 	if !dryRun {
 		fmt.Printf("✓ Created worktree at %s\n", worktreePath)
 		fmt.Printf("✓ Branch %s with parent %s\n", branchName, currentBranch)
+		fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
 	}
 	return nil
 }
