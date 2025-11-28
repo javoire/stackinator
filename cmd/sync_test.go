@@ -24,14 +24,14 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
 		// Get base branch
 		mockGit.On("GetConfig", "branch.feature-b.stackparent").Return("feature-a")
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main").Times(2)
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe() // Called many times in tree printing
 		// Get stack chain
 		stackParents := map[string]string{
 			"feature-a": "main",
 			"feature-b": "feature-a",
 		}
-		mockGit.On("GetAllStackParents").Return(stackParents, nil).Times(2)
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
 		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
@@ -83,14 +83,14 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
 		mockGit.On("GetConfig", "branch.feature-b.stackparent").Return("feature-a")
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main").Times(3) // Called multiple times
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe() // Called many times in tree printing
 
 		stackParents := map[string]string{
 			"feature-a": "main",
 			"feature-b": "feature-a",
 		}
-		mockGit.On("GetAllStackParents").Return(stackParents, nil).Times(2)
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
@@ -145,14 +145,14 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
 		mockGit.On("GetConfig", "branch.feature-b.stackparent").Return("feature-a")
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main").Times(2)
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe() // Called many times in tree printing
 
 		stackParents := map[string]string{
 			"feature-a": "main",
 			"feature-b": "feature-a",
 		}
-		mockGit.On("GetAllStackParents").Return(stackParents, nil).Times(2)
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
@@ -217,13 +217,13 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("Stash", "stack-sync-autostash").Return(nil)
 
 		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main").Times(2)
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
 
 		stackParents := map[string]string{
 			"feature-a": "main",
 		}
-		mockGit.On("GetAllStackParents").Return(stackParents, nil).Times(2)
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 
 		mockGit.On("Fetch").Return(nil)
 		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
@@ -267,13 +267,13 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
 		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main").Times(2)
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
 
 		stackParents := map[string]string{
 			"feature-a": "main",
 		}
-		mockGit.On("GetAllStackParents").Return(stackParents, nil).Times(2)
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 
 		mockGit.On("Fetch").Return(nil)
 		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
@@ -345,14 +345,20 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 	mockGit.On("GetCurrentBranch").Return("main", nil)
 	mockGit.On("IsWorkingTreeClean").Return(true, nil)
 	mockGit.On("GetConfig", "branch.main.stackparent").Return("")
-	mockGit.On("GetConfig", "stack.baseBranch").Return("")
-	mockGit.On("GetDefaultBranch").Return("main")
+	mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+	mockGit.On("GetDefaultBranch").Return("main").Maybe()
 
 	// Empty stack
 	mockGit.On("GetAllStackParents").Return(make(map[string]string), nil)
 
 	mockGit.On("Fetch").Return(nil)
 	mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+	
+	// Even with no stack, we still check worktrees
+	mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+	mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+	mockGit.On("GetRemoteBranchesSet").Return(make(map[string]bool))
+	mockGit.On("CheckoutBranch", "main").Return(nil) // Return to original branch
 
 	err := runSync(mockGit, mockGH)
 

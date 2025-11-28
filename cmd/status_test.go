@@ -31,8 +31,7 @@ func TestRunStatus(t *testing.T) {
 				// Get base branch
 				mockGit.On("GetConfig", "stack.baseBranch").Return("")
 				mockGit.On("GetDefaultBranch").Return("main")
-				// Get PRs
-				mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+				// Note: GetAllPRs is NOT called because noPR is true
 			},
 			expectError: false,
 		},
