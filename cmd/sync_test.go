@@ -353,7 +353,7 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 
 	mockGit.On("Fetch").Return(nil)
 	mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-	
+
 	// Even with no stack, we still check worktrees
 	mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 	mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
