@@ -50,7 +50,8 @@ The tool helps you create, navigate, and sync stacked branches with minimal over
 		spinner.Enabled = !verbose
 
 		// Validate we're in a git repository
-		if _, err := git.GetRepoRoot(); err != nil {
+		gitClient := git.NewGitClient()
+		if _, err := gitClient.GetRepoRoot(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: not in a git repository\n")
 			os.Exit(1)
 		}

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/javoire/stackinator/internal/git"
+	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
@@ -29,33 +30,36 @@ The command must be run while on the branch you want to rename.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		newName := args[0]
 
-		if err := runRename(newName); err != nil {
+		gitClient := git.NewGitClient()
+		githubClient := github.NewGitHubClient()
+
+		if err := runRename(gitClient, githubClient, newName); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
 }
 
-func runRename(newName string) error {
+func runRename(gitClient git.GitClient, githubClient github.GitHubClient, newName string) error {
 	// Get current branch
-	oldName, err := git.GetCurrentBranch()
+	oldName, err := gitClient.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
 	// Validate old branch is in the stack
-	oldParent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", oldName))
+	oldParent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", oldName))
 	if oldParent == "" {
 		return fmt.Errorf("current branch %s is not part of a stack (no stackparent configured)", oldName)
 	}
 
 	// Check if new name already exists
-	if git.BranchExists(newName) {
+	if gitClient.BranchExists(newName) {
 		return fmt.Errorf("branch %s already exists", newName)
 	}
 
 	// Get all children of the current branch
-	children, err := stack.GetChildrenOf(oldName)
+	children, err := stack.GetChildrenOf(gitClient, oldName)
 	if err != nil {
 		return fmt.Errorf("failed to get children: %w", err)
 	}
@@ -66,7 +70,7 @@ func runRename(newName string) error {
 	}
 
 	// Rename the branch
-	if err := git.RenameBranch(oldName, newName); err != nil {
+	if err := gitClient.RenameBranch(oldName, newName); err != nil {
 		return fmt.Errorf("failed to rename branch: %w", err)
 	}
 
@@ -74,11 +78,11 @@ func runRename(newName string) error {
 	oldConfigKey := fmt.Sprintf("branch.%s.stackparent", oldName)
 	newConfigKey := fmt.Sprintf("branch.%s.stackparent", newName)
 
-	if err := git.SetConfig(newConfigKey, oldParent); err != nil {
+	if err := gitClient.SetConfig(newConfigKey, oldParent); err != nil {
 		return fmt.Errorf("failed to set new parent config: %w", err)
 	}
 
-	if err := git.UnsetConfig(oldConfigKey); err != nil {
+	if err := gitClient.UnsetConfig(oldConfigKey); err != nil {
 		// This might fail if the branch was just renamed and git already handled it
 		// Don't fail the whole operation
 		if verbose {
@@ -89,7 +93,7 @@ func runRename(newName string) error {
 	// Update all children to point to the new name
 	for _, child := range children {
 		childConfigKey := fmt.Sprintf("branch.%s.stackparent", child.Name)
-		if err := git.SetConfig(childConfigKey, newName); err != nil {
+		if err := gitClient.SetConfig(childConfigKey, newName); err != nil {
 			return fmt.Errorf("failed to update child %s: %w", child.Name, err)
 		}
 		fmt.Printf("  ✓ Updated child %s to point to %s\n", child.Name, newName)
@@ -100,7 +104,7 @@ func runRename(newName string) error {
 		fmt.Println()
 
 		// Show the updated stack
-		if err := showStack(); err != nil {
+		if err := showStack(gitClient, githubClient); err != nil {
 			// Don't fail if we can't show the stack, just warn
 			fmt.Fprintf(os.Stderr, "Warning: failed to display stack: %v\n", err)
 		}

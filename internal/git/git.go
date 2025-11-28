@@ -13,8 +13,16 @@ var Verbose = false
 // DryRun controls whether to actually execute mutation commands
 var DryRun = false
 
+// gitClient implements the GitClient interface using exec.Command
+type gitClient struct{}
+
+// NewGitClient creates a new GitClient implementation
+func NewGitClient() GitClient {
+	return &gitClient{}
+}
+
 // runCmd executes a git command and returns stdout
-func runCmd(args ...string) (string, error) {
+func (c *gitClient) runCmd(args ...string) (string, error) {
 	if Verbose {
 		fmt.Printf("  [git] %s\n", strings.Join(args, " "))
 	}
@@ -32,7 +40,7 @@ func runCmd(args ...string) (string, error) {
 }
 
 // runCmdMayFail runs a command that might fail (returns empty string on error)
-func runCmdMayFail(args ...string) string {
+func (c *gitClient) runCmdMayFail(args ...string) string {
 	if Verbose {
 		fmt.Printf("  [git] %s\n", strings.Join(args, " "))
 	}
@@ -46,18 +54,18 @@ func runCmdMayFail(args ...string) string {
 }
 
 // GetRepoRoot returns the root directory of the git repository
-func GetRepoRoot() (string, error) {
-	return runCmd("rev-parse", "--show-toplevel")
+func (c *gitClient) GetRepoRoot() (string, error) {
+	return c.runCmd("rev-parse", "--show-toplevel")
 }
 
 // GetCurrentBranch returns the name of the currently checked out branch
-func GetCurrentBranch() (string, error) {
-	return runCmd("branch", "--show-current")
+func (c *gitClient) GetCurrentBranch() (string, error) {
+	return c.runCmd("branch", "--show-current")
 }
 
 // ListBranches returns a list of all local branches
-func ListBranches() ([]string, error) {
-	output, err := runCmd("branch", "--format=%(refname:short)")
+func (c *gitClient) ListBranches() ([]string, error) {
+	output, err := c.runCmd("branch", "--format=%(refname:short)")
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +79,13 @@ func ListBranches() ([]string, error) {
 }
 
 // GetConfig reads a git config value
-func GetConfig(key string) string {
-	return runCmdMayFail("config", "--get", key)
+func (c *gitClient) GetConfig(key string) string {
+	return c.runCmdMayFail("config", "--get", key)
 }
 
 // GetAllStackParents fetches all stack parent configs in one call (more efficient)
-func GetAllStackParents() (map[string]string, error) {
-	output, err := runCmd("config", "--get-regexp", "^branch\\..*\\.stackparent$")
+func (c *gitClient) GetAllStackParents() (map[string]string, error) {
+	output, err := c.runCmd("config", "--get-regexp", "^branch\\..*\\.stackparent$")
 	if err != nil {
 		// No stack parents configured
 		return make(map[string]string), nil
@@ -107,89 +115,89 @@ func GetAllStackParents() (map[string]string, error) {
 }
 
 // SetConfig writes a git config value
-func SetConfig(key, value string) error {
+func (c *gitClient) SetConfig(key, value string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git config %s %s\n", key, value)
 		return nil
 	}
-	_, err := runCmd("config", key, value)
+	_, err := c.runCmd("config", key, value)
 	return err
 }
 
 // UnsetConfig removes a git config value
-func UnsetConfig(key string) error {
+func (c *gitClient) UnsetConfig(key string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git config --unset %s\n", key)
 		return nil
 	}
-	_, err := runCmd("config", "--unset", key)
+	_, err := c.runCmd("config", "--unset", key)
 	return err
 }
 
 // CreateBranch creates a new branch from the specified base and checks it out
-func CreateBranch(name, from string) error {
+func (c *gitClient) CreateBranch(name, from string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git checkout -b %s %s\n", name, from)
 		return nil
 	}
-	_, err := runCmd("checkout", "-b", name, from)
+	_, err := c.runCmd("checkout", "-b", name, from)
 	return err
 }
 
 // CheckoutBranch switches to the specified branch
-func CheckoutBranch(name string) error {
+func (c *gitClient) CheckoutBranch(name string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git checkout %s\n", name)
 		return nil
 	}
-	_, err := runCmd("checkout", name)
+	_, err := c.runCmd("checkout", name)
 	return err
 }
 
 // RenameBranch renames a branch (must be on that branch)
-func RenameBranch(oldName, newName string) error {
+func (c *gitClient) RenameBranch(oldName, newName string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git branch -m %s %s\n", oldName, newName)
 		return nil
 	}
-	_, err := runCmd("branch", "-m", oldName, newName)
+	_, err := c.runCmd("branch", "-m", oldName, newName)
 	return err
 }
 
 // Rebase rebases the current branch onto the specified base
-func Rebase(onto string) error {
+func (c *gitClient) Rebase(onto string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git rebase --autostash %s\n", onto)
 		return nil
 	}
-	_, err := runCmd("rebase", "--autostash", onto)
+	_, err := c.runCmd("rebase", "--autostash", onto)
 	return err
 }
 
 // RebaseOnto rebases the current branch onto newBase, excluding commits up to and including oldBase
 // This is useful for handling squash merges where oldBase was squashed into newBase
 // Equivalent to: git rebase --onto newBase oldBase currentBranch
-func RebaseOnto(newBase, oldBase, currentBranch string) error {
+func (c *gitClient) RebaseOnto(newBase, oldBase, currentBranch string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git rebase --autostash --onto %s %s %s\n", newBase, oldBase, currentBranch)
 		return nil
 	}
-	_, err := runCmd("rebase", "--autostash", "--onto", newBase, oldBase, currentBranch)
+	_, err := c.runCmd("rebase", "--autostash", "--onto", newBase, oldBase, currentBranch)
 	return err
 }
 
 // FetchBranch fetches a specific branch from origin to update tracking info
-func FetchBranch(branch string) error {
+func (c *gitClient) FetchBranch(branch string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git fetch origin %s\n", branch)
 		return nil
 	}
-	_, err := runCmd("fetch", "origin", branch)
+	_, err := c.runCmd("fetch", "origin", branch)
 	return err
 }
 
 // Push pushes a branch to origin
-func Push(branch string, forceWithLease bool) error {
+func (c *gitClient) Push(branch string, forceWithLease bool) error {
 	args := []string{"push"}
 	if forceWithLease {
 		args = append(args, "--force-with-lease")
@@ -201,12 +209,12 @@ func Push(branch string, forceWithLease bool) error {
 		return nil
 	}
 
-	_, err := runCmd(args...)
+	_, err := c.runCmd(args...)
 	return err
 }
 
 // ForcePush force pushes a branch to origin (bypasses --force-with-lease safety)
-func ForcePush(branch string) error {
+func (c *gitClient) ForcePush(branch string) error {
 	args := []string{"push", "--force", "origin", branch}
 
 	if DryRun {
@@ -214,13 +222,13 @@ func ForcePush(branch string) error {
 		return nil
 	}
 
-	_, err := runCmd(args...)
+	_, err := c.runCmd(args...)
 	return err
 }
 
 // IsWorkingTreeClean returns true if there are no uncommitted changes
-func IsWorkingTreeClean() (bool, error) {
-	output, err := runCmd("status", "--porcelain")
+func (c *gitClient) IsWorkingTreeClean() (bool, error) {
+	output, err := c.runCmd("status", "--porcelain")
 	if err != nil {
 		return false, err
 	}
@@ -228,32 +236,32 @@ func IsWorkingTreeClean() (bool, error) {
 }
 
 // Fetch fetches from origin
-func Fetch() error {
+func (c *gitClient) Fetch() error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git fetch origin\n")
 		return nil
 	}
-	_, err := runCmd("fetch", "origin")
+	_, err := c.runCmd("fetch", "origin")
 	return err
 }
 
 // BranchExists checks if a branch exists locally
-func BranchExists(name string) bool {
-	output := runCmdMayFail("rev-parse", "--verify", "refs/heads/"+name)
+func (c *gitClient) BranchExists(name string) bool {
+	output := c.runCmdMayFail("rev-parse", "--verify", "refs/heads/"+name)
 	return output != ""
 }
 
 // RemoteBranchExists checks if a branch exists on origin
-func RemoteBranchExists(name string) bool {
-	output := runCmdMayFail("rev-parse", "--verify", "refs/remotes/origin/"+name)
+func (c *gitClient) RemoteBranchExists(name string) bool {
+	output := c.runCmdMayFail("rev-parse", "--verify", "refs/remotes/origin/"+name)
 	return output != ""
 }
 
 // GetRemoteBranchesSet fetches all remote branches from origin in one call
 // and returns a set (map[string]bool) for efficient lookups.
 // This is more efficient than calling RemoteBranchExists multiple times.
-func GetRemoteBranchesSet() map[string]bool {
-	output := runCmdMayFail("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/")
+func (c *gitClient) GetRemoteBranchesSet() map[string]bool {
+	output := c.runCmdMayFail("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/")
 	if output == "" {
 		return make(map[string]bool)
 	}
@@ -275,61 +283,61 @@ func GetRemoteBranchesSet() map[string]bool {
 }
 
 // AbortRebase aborts an in-progress rebase
-func AbortRebase() error {
+func (c *gitClient) AbortRebase() error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git rebase --abort\n")
 		return nil
 	}
-	_, err := runCmd("rebase", "--abort")
+	_, err := c.runCmd("rebase", "--abort")
 	return err
 }
 
 // ResetToRemote resets the current branch to match the remote branch exactly
-func ResetToRemote(branch string) error {
+func (c *gitClient) ResetToRemote(branch string) error {
 	remoteBranch := "origin/" + branch
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git reset --hard %s\n", remoteBranch)
 		return nil
 	}
-	_, err := runCmd("reset", "--hard", remoteBranch)
+	_, err := c.runCmd("reset", "--hard", remoteBranch)
 	return err
 }
 
 // GetMergeBase returns the common ancestor of two branches
-func GetMergeBase(branch1, branch2 string) (string, error) {
-	return runCmd("merge-base", branch1, branch2)
+func (c *gitClient) GetMergeBase(branch1, branch2 string) (string, error) {
+	return c.runCmd("merge-base", branch1, branch2)
 }
 
 // GetCommitHash returns the commit hash of a ref
-func GetCommitHash(ref string) (string, error) {
-	return runCmd("rev-parse", ref)
+func (c *gitClient) GetCommitHash(ref string) (string, error) {
+	return c.runCmd("rev-parse", ref)
 }
 
 // Stash stashes the current changes
-func Stash(message string) error {
+func (c *gitClient) Stash(message string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git stash push -m \"%s\"\n", message)
 		return nil
 	}
-	_, err := runCmd("stash", "push", "-m", message)
+	_, err := c.runCmd("stash", "push", "-m", message)
 	return err
 }
 
 // StashPop pops the most recent stash
-func StashPop() error {
+func (c *gitClient) StashPop() error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git stash pop\n")
 		return nil
 	}
-	_, err := runCmd("stash", "pop")
+	_, err := c.runCmd("stash", "pop")
 	return err
 }
 
 // GetDefaultBranch attempts to detect the repository's default branch
 // by checking the remote HEAD or falling back to common defaults
-func GetDefaultBranch() string {
+func (c *gitClient) GetDefaultBranch() string {
 	// Try to get the remote's default branch
-	output := runCmdMayFail("symbolic-ref", "refs/remotes/origin/HEAD")
+	output := c.runCmdMayFail("symbolic-ref", "refs/remotes/origin/HEAD")
 	if output != "" {
 		// Output format: refs/remotes/origin/master
 		parts := strings.Split(output, "/")
@@ -340,7 +348,7 @@ func GetDefaultBranch() string {
 
 	// Fall back to checking which common branch exists
 	for _, branch := range []string{"master", "main"} {
-		if BranchExists(branch) {
+		if c.BranchExists(branch) {
 			return branch
 		}
 	}
@@ -350,8 +358,8 @@ func GetDefaultBranch() string {
 }
 
 // GetWorktreeBranches returns a map of branch names to their worktree paths (resolved to canonical paths)
-func GetWorktreeBranches() (map[string]string, error) {
-	output := runCmdMayFail("worktree", "list", "--porcelain")
+func (c *gitClient) GetWorktreeBranches() (map[string]string, error) {
+	output := c.runCmdMayFail("worktree", "list", "--porcelain")
 	if output == "" {
 		return make(map[string]string), nil
 	}
@@ -380,9 +388,9 @@ func GetWorktreeBranches() (map[string]string, error) {
 }
 
 // GetCurrentWorktreePath returns the absolute path of the current worktree
-func GetCurrentWorktreePath() (string, error) {
+func (c *gitClient) GetCurrentWorktreePath() (string, error) {
 	// Use git rev-parse to get the absolute path to the top-level of the current worktree
-	path, err := runCmd("rev-parse", "--path-format=absolute", "--show-toplevel")
+	path, err := c.runCmd("rev-parse", "--path-format=absolute", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -419,7 +427,7 @@ func resolveSymlinks(path string) (string, error) {
 }
 
 // IsCommitsBehind checks if the 'branch' is behind 'base' (i.e., base has commits that branch doesn't)
-func IsCommitsBehind(branch, base string) (bool, error) {
+func (c *gitClient) IsCommitsBehind(branch, base string) (bool, error) {
 	// NOTE: Caller should fetch first to ensure latest remote refs
 	// We don't fetch here to avoid multiple fetches in loops
 
@@ -429,7 +437,7 @@ func IsCommitsBehind(branch, base string) (bool, error) {
 
 	// Get commit count: ahead...behind
 	// Format: "ahead<tab>behind"
-	output, err := runCmd("rev-list", "--left-right", "--count", branch+"..."+baseBranch)
+	output, err := c.runCmd("rev-list", "--left-right", "--count", branch+"..."+baseBranch)
 	if err != nil {
 		return false, err
 	}
@@ -446,71 +454,71 @@ func IsCommitsBehind(branch, base string) (bool, error) {
 
 // DeleteBranch deletes a branch safely (equivalent to git branch -d)
 // This will fail if the branch has unmerged commits
-func DeleteBranch(name string) error {
+func (c *gitClient) DeleteBranch(name string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git branch -d %s\n", name)
 		return nil
 	}
-	_, err := runCmd("branch", "-d", name)
+	_, err := c.runCmd("branch", "-d", name)
 	return err
 }
 
 // DeleteBranchForce force deletes a branch (equivalent to git branch -D)
 // This will delete the branch even if it has unmerged commits
-func DeleteBranchForce(name string) error {
+func (c *gitClient) DeleteBranchForce(name string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git branch -D %s\n", name)
 		return nil
 	}
-	_, err := runCmd("branch", "-D", name)
+	_, err := c.runCmd("branch", "-D", name)
 	return err
 }
 
 // AddWorktree creates a worktree at the specified path for an existing local branch
-func AddWorktree(path, branch string) error {
+func (c *gitClient) AddWorktree(path, branch string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git worktree add %s %s\n", path, branch)
 		return nil
 	}
-	_, err := runCmd("worktree", "add", path, branch)
+	_, err := c.runCmd("worktree", "add", path, branch)
 	return err
 }
 
 // AddWorktreeNewBranch creates a worktree with a new branch at the specified path
 // The new branch is created from the given base branch
-func AddWorktreeNewBranch(path, newBranch, baseBranch string) error {
+func (c *gitClient) AddWorktreeNewBranch(path, newBranch, baseBranch string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git worktree add -b %s %s %s\n", newBranch, path, baseBranch)
 		return nil
 	}
-	_, err := runCmd("worktree", "add", "-b", newBranch, path, baseBranch)
+	_, err := c.runCmd("worktree", "add", "-b", newBranch, path, baseBranch)
 	return err
 }
 
 // AddWorktreeFromRemote creates a worktree tracking a remote branch
 // This creates a local branch that tracks the remote branch
-func AddWorktreeFromRemote(path, branch string) error {
+func (c *gitClient) AddWorktreeFromRemote(path, branch string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git worktree add --track -b %s %s origin/%s\n", branch, path, branch)
 		return nil
 	}
-	_, err := runCmd("worktree", "add", "--track", "-b", branch, path, "origin/"+branch)
+	_, err := c.runCmd("worktree", "add", "--track", "-b", branch, path, "origin/"+branch)
 	return err
 }
 
 // RemoveWorktree removes a worktree at the specified path
-func RemoveWorktree(path string) error {
+func (c *gitClient) RemoveWorktree(path string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git worktree remove %s\n", path)
 		return nil
 	}
-	_, err := runCmd("worktree", "remove", path)
+	_, err := c.runCmd("worktree", "remove", path)
 	return err
 }
 
 // ListWorktrees returns a list of all worktree paths
-func ListWorktrees() ([]string, error) {
-	output := runCmdMayFail("worktree", "list", "--porcelain")
+func (c *gitClient) ListWorktrees() ([]string, error) {
+	output := c.runCmdMayFail("worktree", "list", "--porcelain")
 	if output == "" {
 		return []string{}, nil
 	}

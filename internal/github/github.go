@@ -25,8 +25,16 @@ type PRInfo struct {
 	MergeStateStatus string // "BEHIND", "BLOCKED", "CLEAN", "DIRTY", "UNKNOWN", "UNSTABLE"
 }
 
+// githubClient implements the GitHubClient interface using exec.Command
+type githubClient struct{}
+
+// NewGitHubClient creates a new GitHubClient implementation
+func NewGitHubClient() GitHubClient {
+	return &githubClient{}
+}
+
 // runGH executes a gh CLI command and returns stdout
-func runGH(args ...string) (string, error) {
+func (c *githubClient) runGH(args ...string) (string, error) {
 	if Verbose {
 		fmt.Printf("  [gh] %s\n", strings.Join(args, " "))
 	}
@@ -44,8 +52,8 @@ func runGH(args ...string) (string, error) {
 }
 
 // GetPRForBranch returns PR info for the specified branch
-func GetPRForBranch(branch string) (*PRInfo, error) {
-	output, err := runGH("pr", "view", branch, "--json", "number,state,baseRefName,title,url,mergeStateStatus")
+func (c *githubClient) GetPRForBranch(branch string) (*PRInfo, error) {
+	output, err := c.runGH("pr", "view", branch, "--json", "number,state,baseRefName,title,url,mergeStateStatus")
 	if err != nil {
 		// No PR exists for this branch
 		return nil, nil
@@ -75,9 +83,9 @@ func GetPRForBranch(branch string) (*PRInfo, error) {
 }
 
 // GetAllPRs fetches all PRs for the repository in a single call
-func GetAllPRs() (map[string]*PRInfo, error) {
+func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 	// Fetch all PRs (open, closed, and merged) in one call
-	output, err := runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "1000")
+	output, err := c.runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "1000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list PRs: %w", err)
 	}
@@ -113,19 +121,19 @@ func GetAllPRs() (map[string]*PRInfo, error) {
 }
 
 // UpdatePRBase updates the base branch of a PR
-func UpdatePRBase(prNumber int, newBase string) error {
+func (c *githubClient) UpdatePRBase(prNumber int, newBase string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] gh pr edit %d --base %s\n", prNumber, newBase)
 		return nil
 	}
 
-	_, err := runGH("pr", "edit", strconv.Itoa(prNumber), "--base", newBase)
+	_, err := c.runGH("pr", "edit", strconv.Itoa(prNumber), "--base", newBase)
 	return err
 }
 
 // IsPRMerged checks if a PR has been merged
-func IsPRMerged(prNumber int) (bool, error) {
-	output, err := runGH("pr", "view", strconv.Itoa(prNumber), "--json", "state")
+func (c *githubClient) IsPRMerged(prNumber int) (bool, error) {
+	output, err := c.runGH("pr", "view", strconv.Itoa(prNumber), "--json", "state")
 	if err != nil {
 		return false, err
 	}
@@ -140,5 +148,3 @@ func IsPRMerged(prNumber int) (bool, error) {
 
 	return data.State == "MERGED", nil
 }
-
-

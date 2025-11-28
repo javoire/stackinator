@@ -36,16 +36,19 @@ will be used as the parent.`,
 			parent = args[1]
 		}
 
-		if err := runNew(branchName, parent); err != nil {
+		gitClient := git.NewGitClient()
+		githubClient := github.NewGitHubClient()
+
+		if err := runNew(gitClient, githubClient, branchName, parent); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
 }
 
-func runNew(branchName string, explicitParent string) error {
+func runNew(gitClient git.GitClient, githubClient github.GitHubClient, branchName string, explicitParent string) error {
 	// Check if branch already exists
-	if git.BranchExists(branchName) {
+	if gitClient.BranchExists(branchName) {
 		return fmt.Errorf("branch %s already exists", branchName)
 	}
 
@@ -55,12 +58,12 @@ func runNew(branchName string, explicitParent string) error {
 		// Use explicitly provided parent
 		parent = explicitParent
 		// Verify parent exists
-		if !git.BranchExists(parent) {
+		if !gitClient.BranchExists(parent) {
 			return fmt.Errorf("parent branch %s does not exist", parent)
 		}
 	} else {
 		// Get current branch as parent
-		currentBranch, err := git.GetCurrentBranch()
+		currentBranch, err := gitClient.GetCurrentBranch()
 		if err != nil {
 			return fmt.Errorf("failed to get current branch: %w", err)
 		}
@@ -68,10 +71,10 @@ func runNew(branchName string, explicitParent string) error {
 		// If current branch has no parent, check if it's the base branch
 		// Otherwise use it as parent
 		parent = currentBranch
-		currentParent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
+		currentParent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
 
 		// If we're not on a stack branch, use the base branch as parent
-		if currentParent == "" && currentBranch != stack.GetBaseBranch() {
+		if currentParent == "" && currentBranch != stack.GetBaseBranch(gitClient) {
 			// Check if current branch IS the base branch or if we should use base
 			parent = currentBranch
 		}
@@ -80,13 +83,13 @@ func runNew(branchName string, explicitParent string) error {
 	fmt.Printf("Creating new branch %s from %s\n", branchName, parent)
 
 	// Create the new branch
-	if err := git.CreateBranch(branchName, parent); err != nil {
+	if err := gitClient.CreateBranch(branchName, parent); err != nil {
 		return fmt.Errorf("failed to create branch: %w", err)
 	}
 
 	// Set parent in git config
 	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
-	if err := git.SetConfig(configKey, parent); err != nil {
+	if err := gitClient.SetConfig(configKey, parent); err != nil {
 		return fmt.Errorf("failed to set parent config: %w", err)
 	}
 
@@ -95,7 +98,7 @@ func runNew(branchName string, explicitParent string) error {
 		fmt.Println()
 
 		// Show the full stack
-		if err := showStack(); err != nil {
+		if err := showStack(gitClient, githubClient); err != nil {
 			// Don't fail if we can't show the stack, just warn
 			fmt.Fprintf(os.Stderr, "Warning: failed to display stack: %v\n", err)
 		}
@@ -105,19 +108,19 @@ func runNew(branchName string, explicitParent string) error {
 }
 
 // showStack displays the current stack structure
-func showStack() error {
-	currentBranch, err := git.GetCurrentBranch()
+func showStack(gitClient git.GitClient, githubClient github.GitHubClient) error {
+	currentBranch, err := gitClient.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	tree, err := stack.BuildStackTreeForBranch(currentBranch)
+	tree, err := stack.BuildStackTreeForBranch(gitClient, currentBranch)
 	if err != nil {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
 	// Fetch all PRs upfront for better performance
-	prCache, err := github.GetAllPRs()
+	prCache, err := githubClient.GetAllPRs()
 	if err != nil {
 		// If fetching PRs fails, just continue without PR info
 		prCache = make(map[string]*github.PRInfo)
@@ -126,7 +129,7 @@ func showStack() error {
 	// Filter out branches with merged PRs from the tree (but keep current branch)
 	tree = filterMergedBranchesForNew(tree, prCache, currentBranch)
 
-	printStackTree(tree, "", true, currentBranch, prCache)
+	printStackTree(gitClient, tree, "", true, currentBranch, prCache)
 
 	return nil
 }
@@ -170,16 +173,16 @@ func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github
 }
 
 // printStackTree is a simplified version of the status tree printer
-func printStackTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
+func printStackTree(gitClient git.GitClient, node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
 	if node == nil {
 		return
 	}
 
 	// Flatten the tree into a vertical list
-	printStackTreeVertical(node, currentBranch, prCache, false)
+	printStackTreeVertical(gitClient, node, currentBranch, prCache, false)
 }
 
-func printStackTreeVertical(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+func printStackTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
 	if node == nil {
 		return
 	}
@@ -191,7 +194,7 @@ func printStackTreeVertical(node *stack.TreeNode, currentBranch string, prCache 
 
 	// Get PR info from cache
 	prInfo := ""
-	if node.Name != stack.GetBaseBranch() {
+	if node.Name != stack.GetBaseBranch(gitClient) {
 		if pr, exists := prCache[node.Name]; exists {
 			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
 		}
@@ -207,6 +210,6 @@ func printStackTreeVertical(node *stack.TreeNode, currentBranch string, prCache 
 
 	// Print children vertically
 	for _, child := range node.Children {
-		printStackTreeVertical(child, currentBranch, prCache, true)
+		printStackTreeVertical(gitClient, child, currentBranch, prCache, true)
 	}
 }

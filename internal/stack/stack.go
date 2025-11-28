@@ -15,9 +15,9 @@ type StackBranch struct {
 }
 
 // GetStackBranches returns all branches that are part of a stack
-func GetStackBranches() ([]StackBranch, error) {
+func GetStackBranches(gitClient git.GitClient) ([]StackBranch, error) {
 	// Fetch all stack parents in one efficient call
-	parents, err := git.GetAllStackParents()
+	parents, err := gitClient.GetAllStackParents()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stack parents: %w", err)
 	}
@@ -35,8 +35,8 @@ func GetStackBranches() ([]StackBranch, error) {
 }
 
 // GetChildrenOf returns all direct children of the specified branch
-func GetChildrenOf(branch string) ([]StackBranch, error) {
-	allBranches, err := GetStackBranches()
+func GetChildrenOf(gitClient git.GitClient, branch string) ([]StackBranch, error) {
+	allBranches, err := GetStackBranches(gitClient)
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +57,9 @@ func GetChildrenOf(branch string) ([]StackBranch, error) {
 }
 
 // GetStackChain returns the chain from the base to the specified branch
-func GetStackChain(branch string) ([]string, error) {
+func GetStackChain(gitClient git.GitClient, branch string) ([]string, error) {
 	// Get all parents at once for efficiency
-	parents, err := git.GetAllStackParents()
+	parents, err := gitClient.GetAllStackParents()
 	if err != nil {
 		return nil, err
 	}
@@ -149,17 +149,17 @@ func TopologicalSort(branches []StackBranch) ([]StackBranch, error) {
 }
 
 // GetBaseBranch returns the configured base branch or auto-detects it
-func GetBaseBranch() string {
-	base := git.GetConfig("stack.baseBranch")
+func GetBaseBranch(gitClient git.GitClient) string {
+	base := gitClient.GetConfig("stack.baseBranch")
 	if base == "" {
-		return git.GetDefaultBranch()
+		return gitClient.GetDefaultBranch()
 	}
 	return base
 }
 
 // BuildStackTree builds a tree representation for display
-func BuildStackTree() (*TreeNode, error) {
-	stackBranches, err := GetStackBranches()
+func BuildStackTree(gitClient git.GitClient) (*TreeNode, error) {
+	stackBranches, err := GetStackBranches(gitClient)
 	if err != nil {
 		return nil, err
 	}
@@ -178,14 +178,14 @@ func BuildStackTree() (*TreeNode, error) {
 	}
 
 	// Build tree starting from base branch
-	baseBranch := GetBaseBranch()
+	baseBranch := GetBaseBranch(gitClient)
 	return buildTreeNode(baseBranch, childrenMap), nil
 }
 
 // BuildStackTreeForBranch builds a tree for only the stack containing the specified branch
-func BuildStackTreeForBranch(branchName string) (*TreeNode, error) {
+func BuildStackTreeForBranch(gitClient git.GitClient, branchName string) (*TreeNode, error) {
 	// Get the chain from base to current branch
-	chain, err := GetStackChain(branchName)
+	chain, err := GetStackChain(gitClient, branchName)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func BuildStackTreeForBranch(branchName string) (*TreeNode, error) {
 	}
 
 	// Get all stack branches to find children
-	stackBranches, err := GetStackBranches()
+	stackBranches, err := GetStackBranches(gitClient)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func BuildStackTreeForBranch(branchName string) (*TreeNode, error) {
 
 	// If the root is not the base branch, we need to include the base branch
 	// in the tree as the actual root
-	baseBranch := GetBaseBranch()
+	baseBranch := GetBaseBranch(gitClient)
 	if root != baseBranch {
 		// Check if the root has a parent in childrenMap (meaning there are branches
 		// that have root as their parent)
