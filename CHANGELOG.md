@@ -1,3 +1,9 @@
+## [1.0.3](https://github.com/javoire/stackinator/compare/v1.0.2...v1.0.3) (2025-11-28)
+
+### Bug Fixes
+
+* add brew caveat for stack bin ([68c05af](https://github.com/javoire/stackinator/commit/68c05af332708ad8287f4898d12a9e8f2d2e21b1))
+
 ## [1.0.2](https://github.com/javoire/stackinator/compare/v1.0.1...v1.0.2) (2025-11-28)
 
 ### Bug Fixes
