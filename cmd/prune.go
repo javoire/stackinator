@@ -43,7 +43,10 @@ If a branch has unmerged commits locally, use --force to delete it anyway.`,
   # Preview what would be deleted
   stack prune --dry-run`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runPrune(); err != nil {
+		gitClient := git.NewGitClient()
+		githubClient := github.NewGitHubClient()
+
+		if err := runPrune(gitClient, githubClient); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -55,15 +58,15 @@ func init() {
 	pruneCmd.Flags().BoolVarP(&pruneAll, "all", "a", false, "Check all local branches, not just stack branches")
 }
 
-func runPrune() error {
+func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Get current branch so we don't delete it
-	currentBranch, err := git.GetCurrentBranch()
+	currentBranch, err := gitClient.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
 	// Get base branch to exclude it from pruning
-	baseBranch := stack.GetBaseBranch()
+	baseBranch := stack.GetBaseBranch(gitClient)
 
 	// Start PR fetch in parallel with branch loading (PR fetch is the slowest operation)
 	var wg sync.WaitGroup
@@ -73,7 +76,7 @@ func runPrune() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		prCache, prErr = github.GetAllPRs()
+		prCache, prErr = githubClient.GetAllPRs()
 	}()
 
 	// Get branches to check (runs in parallel with PR fetch)
@@ -81,7 +84,7 @@ func runPrune() error {
 	var branchErr error
 	if pruneAll {
 		// Check all local branches
-		branchNames, branchErr = git.ListBranches()
+		branchNames, branchErr = gitClient.ListBranches()
 		if branchErr != nil {
 			wg.Wait() // Wait for PR fetch before returning
 			return fmt.Errorf("failed to get branches: %w", branchErr)
@@ -98,7 +101,7 @@ func runPrune() error {
 	} else {
 		// Check only stack branches
 		var stackBranches []stack.StackBranch
-		stackBranches, branchErr = stack.GetStackBranches()
+		stackBranches, branchErr = stack.GetStackBranches(gitClient)
 		if branchErr != nil {
 			wg.Wait() // Wait for PR fetch before returning
 			return fmt.Errorf("failed to get stack branches: %w", branchErr)
@@ -165,9 +168,9 @@ func runPrune() error {
 
 		// Remove from stack tracking (if in stack)
 		configKey := fmt.Sprintf("branch.%s.stackparent", branch)
-		if git.GetConfig(configKey) != "" {
+		if gitClient.GetConfig(configKey) != "" {
 			fmt.Println("  Removing from stack tracking...")
-			if err := git.UnsetConfig(configKey); err != nil {
+			if err := gitClient.UnsetConfig(configKey); err != nil {
 				fmt.Fprintf(os.Stderr, "  Warning: failed to remove stack config: %v\n", err)
 			}
 		}
@@ -183,9 +186,9 @@ func runPrune() error {
 		fmt.Println("  Deleting branch...")
 		var deleteErr error
 		if pruneForce {
-			deleteErr = deleteBranchForce(branch)
+			deleteErr = deleteBranchForce(gitClient, branch)
 		} else {
-			deleteErr = deleteBranch(branch)
+			deleteErr = deleteBranch(gitClient, branch)
 		}
 
 		if deleteErr != nil {
@@ -205,17 +208,17 @@ func runPrune() error {
 }
 
 // deleteBranch deletes a branch using 'git branch -d' (safe delete)
-func deleteBranch(name string) error {
+func deleteBranch(gitClient git.GitClient, name string) error {
 	if verbose {
 		fmt.Printf("  [git] branch -d %s\n", name)
 	}
-	return git.DeleteBranch(name)
+	return gitClient.DeleteBranch(name)
 }
 
 // deleteBranchForce deletes a branch using 'git branch -D' (force delete)
-func deleteBranchForce(name string) error {
+func deleteBranchForce(gitClient git.GitClient, name string) error {
 	if verbose {
 		fmt.Printf("  [git] branch -D %s\n", name)
 	}
-	return git.DeleteBranchForce(name)
+	return gitClient.DeleteBranchForce(name)
 }

@@ -32,22 +32,25 @@ a feature is based on.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		newParent := args[0]
 
-		if err := runReparent(newParent); err != nil {
+		gitClient := git.NewGitClient()
+		githubClient := github.NewGitHubClient()
+
+		if err := runReparent(gitClient, githubClient, newParent); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
 }
 
-func runReparent(newParent string) error {
+func runReparent(gitClient git.GitClient, githubClient github.GitHubClient, newParent string) error {
 	// Get current branch
-	currentBranch, err := git.GetCurrentBranch()
+	currentBranch, err := gitClient.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
 	// Check if current branch is a stack branch
-	currentParent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
+	currentParent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
 	if currentParent == "" {
 		return fmt.Errorf("branch %s is not part of a stack (no parent set)", currentBranch)
 	}
@@ -59,7 +62,7 @@ func runReparent(newParent string) error {
 	}
 
 	// Verify new parent branch exists
-	if !git.BranchExists(newParent) {
+	if !gitClient.BranchExists(newParent) {
 		return fmt.Errorf("new parent branch %s does not exist", newParent)
 	}
 
@@ -69,7 +72,7 @@ func runReparent(newParent string) error {
 	}
 
 	// Check if new parent is a descendant of current branch (would create cycle)
-	if isDescendant(currentBranch, newParent) {
+	if isDescendant(gitClient, currentBranch, newParent) {
 		return fmt.Errorf("cannot reparent to %s: it is a descendant of %s (would create a cycle)", newParent, currentBranch)
 	}
 
@@ -77,12 +80,12 @@ func runReparent(newParent string) error {
 
 	// Update git config
 	configKey := fmt.Sprintf("branch.%s.stackparent", currentBranch)
-	if err := git.SetConfig(configKey, newParent); err != nil {
+	if err := gitClient.SetConfig(configKey, newParent); err != nil {
 		return fmt.Errorf("failed to update parent config: %w", err)
 	}
 
 	// Check if there's a PR for this branch
-	pr, err := github.GetPRForBranch(currentBranch)
+	pr, err := githubClient.GetPRForBranch(currentBranch)
 	if err != nil {
 		// Error fetching PR info, but config was updated successfully
 		fmt.Printf("✓ Updated parent to %s\n", newParent)
@@ -94,7 +97,7 @@ func runReparent(newParent string) error {
 		// PR exists, update its base
 		fmt.Printf("Updating PR #%d base: %s -> %s\n", pr.Number, pr.Base, newParent)
 
-		if err := github.UpdatePRBase(pr.Number, newParent); err != nil {
+		if err := githubClient.UpdatePRBase(pr.Number, newParent); err != nil {
 			// Config was updated but PR base update failed
 			fmt.Printf("✓ Updated parent to %s\n", newParent)
 			return fmt.Errorf("failed to update PR base: %w", err)
@@ -116,7 +119,7 @@ func runReparent(newParent string) error {
 }
 
 // isDescendant checks if possibleDescendant is a descendant of ancestor in the stack
-func isDescendant(ancestor, possibleDescendant string) bool {
+func isDescendant(gitClient git.GitClient, ancestor, possibleDescendant string) bool {
 	// Walk up from possibleDescendant to see if we reach ancestor
 	current := possibleDescendant
 	visited := make(map[string]bool)
@@ -129,7 +132,7 @@ func isDescendant(ancestor, possibleDescendant string) bool {
 		visited[current] = true
 
 		// Get parent of current
-		parent := git.GetConfig(fmt.Sprintf("branch.%s.stackparent", current))
+		parent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", current))
 		if parent == "" {
 			// Reached the top of the stack without finding ancestor
 			return false

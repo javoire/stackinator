@@ -51,15 +51,18 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		gitClient := git.NewGitClient()
+		githubClient := github.NewGitHubClient()
+
 		var err error
 		if worktreePrune {
-			err = runWorktreePrune()
+			err = runWorktreePrune(gitClient, githubClient)
 		} else {
 			var baseBranch string
 			if len(args) > 1 {
 				baseBranch = args[1]
 			}
-			err = runWorktree(args[0], baseBranch)
+			err = runWorktree(gitClient, githubClient, args[0], baseBranch)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -72,9 +75,9 @@ func init() {
 	worktreeCmd.Flags().BoolVar(&worktreePrune, "prune", false, "Remove worktrees for branches with merged PRs")
 }
 
-func runWorktree(branchName, baseBranch string) error {
+func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, branchName, baseBranch string) error {
 	// Get repo root
-	repoRoot, err := git.GetRepoRoot()
+	repoRoot, err := gitClient.GetRepoRoot()
 	if err != nil {
 		return fmt.Errorf("failed to get repo root: %w", err)
 	}
@@ -94,40 +97,40 @@ func runWorktree(branchName, baseBranch string) error {
 
 	// If base branch is specified, always create new branch from it
 	if baseBranch != "" {
-		return createNewBranchWorktree(branchName, baseBranch, worktreePath)
+		return createNewBranchWorktree(gitClient, branchName, baseBranch, worktreePath)
 	}
 
 	// Check if branch exists locally or on remote
-	return createWorktreeForExisting(branchName, worktreePath)
+	return createWorktreeForExisting(gitClient, branchName, worktreePath)
 }
 
-func createNewBranchWorktree(branchName, baseBranch, worktreePath string) error {
+func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, worktreePath string) error {
 	// Check if branch already exists
-	if git.BranchExists(branchName) {
+	if gitClient.BranchExists(branchName) {
 		return fmt.Errorf("branch %s already exists", branchName)
 	}
 
 	// Verify base branch exists (locally or on remote)
-	if !git.BranchExists(baseBranch) && !git.RemoteBranchExists(baseBranch) {
+	if !gitClient.BranchExists(baseBranch) && !gitClient.RemoteBranchExists(baseBranch) {
 		return fmt.Errorf("base branch %s does not exist locally or on remote", baseBranch)
 	}
 
 	// Use origin/baseBranch if it's a remote branch to get fresh copy
 	baseRef := baseBranch
-	if git.RemoteBranchExists(baseBranch) {
+	if gitClient.RemoteBranchExists(baseBranch) {
 		baseRef = "origin/" + baseBranch
 	}
 
 	fmt.Printf("Creating new branch %s from %s\n", branchName, baseRef)
 
 	// Create worktree with new branch
-	if err := git.AddWorktreeNewBranch(worktreePath, branchName, baseRef); err != nil {
+	if err := gitClient.AddWorktreeNewBranch(worktreePath, branchName, baseRef); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
 	// Set parent in git config for stack tracking
 	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
-	if err := git.SetConfig(configKey, baseBranch); err != nil {
+	if err := gitClient.SetConfig(configKey, baseBranch); err != nil {
 		return fmt.Errorf("failed to set parent config: %w", err)
 	}
 
@@ -140,11 +143,11 @@ func createNewBranchWorktree(branchName, baseBranch, worktreePath string) error 
 	return nil
 }
 
-func createWorktreeForExisting(branchName, worktreePath string) error {
+func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath string) error {
 	// Check if branch exists locally
-	if git.BranchExists(branchName) {
+	if gitClient.BranchExists(branchName) {
 		fmt.Printf("Creating worktree for local branch %s\n", branchName)
-		if err := git.AddWorktree(worktreePath, branchName); err != nil {
+		if err := gitClient.AddWorktree(worktreePath, branchName); err != nil {
 			return fmt.Errorf("failed to create worktree: %w", err)
 		}
 		if !dryRun {
@@ -155,9 +158,9 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 	}
 
 	// Check if branch exists on remote
-	if git.RemoteBranchExists(branchName) {
+	if gitClient.RemoteBranchExists(branchName) {
 		fmt.Printf("Creating worktree for remote branch %s\n", branchName)
-		if err := git.AddWorktreeFromRemote(worktreePath, branchName); err != nil {
+		if err := gitClient.AddWorktreeFromRemote(worktreePath, branchName); err != nil {
 			return fmt.Errorf("failed to create worktree: %w", err)
 		}
 		if !dryRun {
@@ -168,19 +171,19 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 	}
 
 	// Branch doesn't exist - create new branch from current branch with stack tracking
-	currentBranch, err := git.GetCurrentBranch()
+	currentBranch, err := gitClient.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
 	fmt.Printf("Creating new branch %s from %s\n", branchName, currentBranch)
-	if err := git.AddWorktreeNewBranch(worktreePath, branchName, currentBranch); err != nil {
+	if err := gitClient.AddWorktreeNewBranch(worktreePath, branchName, currentBranch); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
 	// Set parent in git config for stack tracking
 	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
-	if err := git.SetConfig(configKey, currentBranch); err != nil {
+	if err := gitClient.SetConfig(configKey, currentBranch); err != nil {
 		return fmt.Errorf("failed to set parent config: %w", err)
 	}
 
@@ -192,9 +195,9 @@ func createWorktreeForExisting(branchName, worktreePath string) error {
 	return nil
 }
 
-func runWorktreePrune() error {
+func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Get repo root
-	repoRoot, err := git.GetRepoRoot()
+	repoRoot, err := gitClient.GetRepoRoot()
 	if err != nil {
 		return fmt.Errorf("failed to get repo root: %w", err)
 	}
@@ -208,7 +211,7 @@ func runWorktreePrune() error {
 	}
 
 	// Get all worktrees and their branches
-	worktreeBranches, err := git.GetWorktreeBranches()
+	worktreeBranches, err := gitClient.GetWorktreeBranches()
 	if err != nil {
 		return fmt.Errorf("failed to list worktrees: %w", err)
 	}
@@ -236,7 +239,7 @@ func runWorktreePrune() error {
 	var prCache map[string]*github.PRInfo
 	if err := spinner.WrapWithSuccess("Fetching PRs...", "Fetched PRs", func() error {
 		var prErr error
-		prCache, prErr = github.GetAllPRs()
+		prCache, prErr = githubClient.GetAllPRs()
 		return prErr
 	}); err != nil {
 		return fmt.Errorf("failed to fetch PRs: %w", err)
@@ -276,7 +279,7 @@ func runWorktreePrune() error {
 	for i, wt := range mergedWorktrees {
 		fmt.Printf("(%d/%d) Removing worktree for %s...\n", i+1, len(mergedWorktrees), wt.branch)
 
-		if err := git.RemoveWorktree(wt.path); err != nil {
+		if err := gitClient.RemoveWorktree(wt.path); err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: failed to remove worktree: %v\n", err)
 		} else {
 			fmt.Println("  ✓ Removed")

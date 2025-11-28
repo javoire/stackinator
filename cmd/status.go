@@ -40,7 +40,10 @@ This helps you visualize your stack and see which branches have PRs.`,
   #   |
   #  feature-auth-tests *`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runStatus(); err != nil {
+		gitClient := git.NewGitClient()
+		githubClient := github.NewGitHubClient()
+
+		if err := runStatus(gitClient, githubClient); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -51,7 +54,7 @@ func init() {
 	statusCmd.Flags().BoolVar(&noPR, "no-pr", false, "Skip fetching PR information (faster)")
 }
 
-func runStatus() error {
+func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	var currentBranch string
 	var stackBranches []stack.StackBranch
 	var tree *stack.TreeNode
@@ -68,7 +71,7 @@ func runStatus() error {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			prCache, prErr = github.GetAllPRs()
+			prCache, prErr = githubClient.GetAllPRs()
 			if prErr != nil {
 				// If fetching fails, fall back to empty cache
 				prCache = make(map[string]*github.PRInfo)
@@ -77,7 +80,7 @@ func runStatus() error {
 		go func() {
 			defer wg.Done()
 			// Fetch latest changes from origin (needed for sync issue detection)
-			_ = git.Fetch()
+			_ = gitClient.Fetch()
 			fetchDone = true
 		}()
 	} else {
@@ -88,13 +91,13 @@ func runStatus() error {
 	if err := spinner.WrapWithAutoDelay("Loading stack...", 300*time.Millisecond, func() error {
 		// Get current branch
 		var err error
-		currentBranch, err = git.GetCurrentBranch()
+		currentBranch, err = gitClient.GetCurrentBranch()
 		if err != nil {
 			return fmt.Errorf("failed to get current branch: %w", err)
 		}
 
 		// Check if there are any stack branches
-		stackBranches, err = stack.GetStackBranches()
+		stackBranches, err = stack.GetStackBranches(gitClient)
 		if err != nil {
 			return fmt.Errorf("failed to get stack branches: %w", err)
 		}
@@ -104,7 +107,7 @@ func runStatus() error {
 		}
 
 		// Build stack tree for current branch only
-		tree, err = stack.BuildStackTreeForBranch(currentBranch)
+		tree, err = stack.BuildStackTreeForBranch(gitClient, currentBranch)
 		if err != nil {
 			return fmt.Errorf("failed to build stack tree: %w", err)
 		}
@@ -135,7 +138,7 @@ func runStatus() error {
 
 	// Print the tree
 	fmt.Println()
-	printTree(tree, "", true, currentBranch, prCache)
+	printTree(gitClient, tree, "", true, currentBranch, prCache)
 
 	// Check for sync issues (skip if --no-pr)
 	if !noPR {
@@ -154,7 +157,7 @@ func runStatus() error {
 		var syncResult *syncIssuesResult
 		if err := spinner.WrapWithAutoDelayAndProgress("Checking for sync issues...", 300*time.Millisecond, func(progress spinner.ProgressFunc) error {
 			var err error
-			syncResult, err = detectSyncIssues(treeBranches, prCache, progress, fetchDone)
+			syncResult, err = detectSyncIssues(gitClient, treeBranches, prCache, progress, fetchDone)
 			return err
 		}); err != nil {
 			// Don't fail on detection errors, just skip the check
@@ -232,16 +235,16 @@ func filterMergedBranches(node *stack.TreeNode, prCache map[string]*github.PRInf
 	return node
 }
 
-func printTree(node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
+func printTree(gitClient git.GitClient, node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
 	if node == nil {
 		return
 	}
 
 	// Flatten the tree into a vertical list
-	printTreeVertical(node, currentBranch, prCache, false)
+	printTreeVertical(gitClient, node, currentBranch, prCache, false)
 }
 
-func printTreeVertical(node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+func printTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
 	if node == nil {
 		return
 	}
@@ -254,7 +257,7 @@ func printTreeVertical(node *stack.TreeNode, currentBranch string, prCache map[s
 
 	// Get PR info from cache
 	prInfo := ""
-	if node.Name != stack.GetBaseBranch() {
+	if node.Name != stack.GetBaseBranch(gitClient) {
 		if pr, exists := prCache[node.Name]; exists {
 			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
 		}
@@ -270,7 +273,7 @@ func printTreeVertical(node *stack.TreeNode, currentBranch string, prCache map[s
 
 	// Print children vertically
 	for _, child := range node.Children {
-		printTreeVertical(child, currentBranch, prCache, true)
+		printTreeVertical(gitClient, child, currentBranch, prCache, true)
 	}
 }
 
@@ -282,7 +285,7 @@ type syncIssuesResult struct {
 
 // detectSyncIssues checks if any branches are out of sync and returns the issues (doesn't print)
 // If skipFetch is true, assumes git fetch was already called (to avoid redundant network calls)
-func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*github.PRInfo, progress spinner.ProgressFunc, skipFetch bool) (*syncIssuesResult, error) {
+func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch, prCache map[string]*github.PRInfo, progress spinner.ProgressFunc, skipFetch bool) (*syncIssuesResult, error) {
 	var issues []string
 	var mergedBranches []string
 
@@ -292,7 +295,7 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 		if verbose {
 			fmt.Println("Fetching latest changes from origin...")
 		}
-		_ = git.Fetch()
+		_ = gitClient.Fetch()
 	}
 
 	if verbose {
@@ -317,7 +320,7 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 		}
 
 		// Check if parent has a merged PR (child needs to be updated)
-		if branch.Parent != stack.GetBaseBranch() {
+		if branch.Parent != stack.GetBaseBranch(gitClient) {
 			if parentPR, exists := prCache[branch.Parent]; exists && parentPR.State == "MERGED" {
 				if verbose {
 					fmt.Printf("  ✗ Parent '%s' has merged PR #%d\n", branch.Parent, parentPR.Number)
@@ -350,7 +353,7 @@ func detectSyncIssues(stackBranches []stack.StackBranch, prCache map[string]*git
 		if verbose {
 			fmt.Printf("  Checking if branch is behind parent %s...\n", branch.Parent)
 		}
-		behind, err := git.IsCommitsBehind(branch.Name, branch.Parent)
+		behind, err := gitClient.IsCommitsBehind(branch.Name, branch.Parent)
 		if err == nil && behind {
 			if verbose {
 				fmt.Printf("  ✗ Branch is behind %s (needs rebase)\n", branch.Parent)
