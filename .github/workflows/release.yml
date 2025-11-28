@@ -4,6 +4,17 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.1) - runs goreleaser for existing tag'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   release:
@@ -14,11 +25,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Semantic release only runs on push, not manual dispatch
       - uses: actions/setup-node@v4
+        if: github.event_name == 'push'
         with:
           node-version: "lts/*"
 
       - name: Semantic Release
+        if: github.event_name == 'push'
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
         with:
@@ -29,19 +43,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
+      # Determine if we should run goreleaser
+      - name: Set release info
+        id: release_info
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.semantic.outputs.new_release_published }}" == "true" ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "tag=v${{ steps.semantic.outputs.new_release_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
       - uses: actions/setup-go@v5
-        if: steps.semantic.outputs.new_release_published == 'true'
+        if: steps.release_info.outputs.should_release == 'true'
         with:
           go-version: stable
 
-      - name: Checkout new tag
-        if: steps.semantic.outputs.new_release_published == 'true'
+      - name: Checkout tag
+        if: steps.release_info.outputs.should_release == 'true'
         run: |
           git fetch --tags
-          git checkout v${{ steps.semantic.outputs.new_release_version }}
+          git checkout ${{ steps.release_info.outputs.tag }}
 
       - uses: goreleaser/goreleaser-action@v5
-        if: steps.semantic.outputs.new_release_published == 'true'
+        if: steps.release_info.outputs.should_release == 'true'
         with:
           distribution: goreleaser
           version: "~> v2"
