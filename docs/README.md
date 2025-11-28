@@ -25,7 +25,7 @@ Inspired by tools like [Charcoal](https://github.com/danerwilliams/charcoal) and
 brew install javoire/tap/stackinator
 ```
 
-See [Alternative Installation Methods](alternative-installations.md) for other options.
+See [Installation](installation.md) for all options.
 
 ## Quick Start
 

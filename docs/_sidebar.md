@@ -1,7 +1,7 @@
 - Getting Started
 
   - [Home](/)
-  - [Installation](alternative-installations.md)
+  - [Installation](installation.md)
   - [Examples](examples.md)
 
 - Reference

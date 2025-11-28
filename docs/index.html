@@ -7,34 +7,36 @@
   <title>Stackinator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple.min.css">
   <style>
     :root {
       /* Typography */
-      --base-font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-      --heading-font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-      --code-font-family: 'Space Mono', 'SF Mono', monospace;
+      --base-font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+      --heading-font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+      --code-font-family: 'Source Code Pro', 'SF Mono', monospace;
       --base-font-size: 16px;
       --heading-font-weight: 600;
 
-      /* Colors - Warm amber accent on dark */
-      --theme-color: #f59e0b;
-      --base-background-color: #0f0f0f;
-      --sidebar-background: #0a0a0a;
-      --sidebar-nav-link-color: #a3a3a3;
-      --sidebar-nav-link-color--active: #f59e0b;
-      --sidebar-nav-link-border-color--active: #f59e0b;
-      --sidebar-name-color: #fafafa;
-      --base-color: #e5e5e5;
-      --heading-color: #fafafa;
-      --link-color: #f59e0b;
-      --link-color--hover: #fbbf24;
-      --code-inline-background: #1a1a1a;
-      --code-inline-color: #fcd34d;
-      --code-block-background: #0a0a0a;
-      --blockquote-border-color: #f59e0b;
-      --table-row-odd-background: #141414;
+      /* Colors - Teal accent on warm cream */
+      --theme-color: #0d9488;
+      --base-background-color: #fefdfb;
+      --sidebar-background: #f8f7f4;
+      --sidebar-border-color: #e8e6e1;
+      --sidebar-nav-link-color: #57534e;
+      --sidebar-nav-link-color--active: #0d9488;
+      --sidebar-nav-link-border-color--active: #0d9488;
+      --sidebar-name-color: #1c1917;
+      --base-color: #44403c;
+      --heading-color: #1c1917;
+      --link-color: #0d9488;
+      --link-color--hover: #0f766e;
+      --code-inline-background: #f5f4f1;
+      --code-inline-color: #b45309;
+      --code-block-background: #1e1e1e;
+      --blockquote-border-color: #0d9488;
+      --blockquote-background: #f0fdfa;
+      --table-row-odd-background: #faf9f7;
 
       /* Layout */
       --sidebar-width: 260px;
@@ -54,16 +56,16 @@
       background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-      background: #333;
+      background: #d6d3d1;
       border-radius: 3px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #444;
+      background: #a8a29e;
     }
 
     /* Sidebar styling */
     .sidebar {
-      border-right: 1px solid #1f1f1f;
+      border-right: 1px solid #e8e6e1;
     }
     .sidebar-nav {
       padding: 1.5em 1em;
@@ -77,7 +79,7 @@
       padding: 1.5rem 1rem;
     }
     .app-name span {
-      background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+      background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -87,81 +89,118 @@
     .markdown-section h1 {
       font-size: 2.25rem;
       letter-spacing: -0.03em;
-      border-bottom: 2px solid #1f1f1f;
+      border-bottom: 2px solid #e8e6e1;
       padding-bottom: 0.5em;
     }
     .markdown-section h2 {
       font-size: 1.5rem;
       letter-spacing: -0.02em;
       margin-top: 2.5em;
+      color: #292524;
     }
     .markdown-section h3 {
-      color: #d4d4d4;
+      color: #44403c;
     }
 
-    /* Code block header style */
+    /* Code block styling */
     .markdown-section pre {
       position: relative;
-      border: 1px solid #1f1f1f;
+      border: 1px solid #e8e6e1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
-    .markdown-section code {
+    .markdown-section pre code {
+      color: #d4d4d4;
       font-size: 0.875em;
     }
 
     /* Inline code */
     .markdown-section p code,
-    .markdown-section li code {
+    .markdown-section li code,
+    .markdown-section td code {
       padding: 0.15em 0.4em;
       border-radius: 4px;
       font-size: 0.9em;
-    }
-
-    /* Cover page */
-    .cover {
-      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%) !important;
-    }
-    .cover h1 {
-      font-weight: 700;
-      letter-spacing: -0.03em;
-    }
-
-    /* Search styling */
-    .search {
-      border-bottom: 1px solid #1f1f1f !important;
-    }
-    .search input {
-      background: #141414 !important;
-      border: 1px solid #262626 !important;
-      border-radius: 6px !important;
-      color: #e5e5e5 !important;
-    }
-    .search input::placeholder {
-      color: #525252 !important;
-    }
-    .matching-post {
-      border-bottom: 1px solid #1f1f1f !important;
+      border: 1px solid #e8e6e1;
     }
 
     /* Blockquote styling */
     .markdown-section blockquote {
-      background: #141414;
+      background: #f0fdfa;
       border-radius: 0 8px 8px 0;
       padding: 1em 1.25em;
+      border-left: 4px solid #0d9488;
     }
 
     /* Table styling */
     .markdown-section table {
       border-radius: 8px;
       overflow: hidden;
+      border: 1px solid #e8e6e1;
     }
     .markdown-section th {
-      background: #1a1a1a;
+      background: #f5f4f1;
       font-weight: 600;
+      color: #1c1917;
+    }
+    .markdown-section td {
+      border-color: #e8e6e1;
     }
 
     /* List styling */
     .markdown-section ul li {
       margin: 0.5em 0;
+    }
+
+    /* Search modal (cmd+K style) */
+    .search {
+      border-bottom: 1px solid #e8e6e1 !important;
+      margin-bottom: 1rem;
+    }
+    .search input {
+      background: #ffffff !important;
+      border: 1px solid #d6d3d1 !important;
+      border-radius: 8px !important;
+      color: #1c1917 !important;
+      padding: 0.75em 1em !important;
+      transition: border-color 0.2s, box-shadow 0.2s !important;
+    }
+    .search input:focus {
+      border-color: #0d9488 !important;
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
+      outline: none !important;
+    }
+    .search input::placeholder {
+      color: #a8a29e !important;
+    }
+    .search .matching-post {
+      border-bottom: 1px solid #e8e6e1 !important;
+    }
+    .search .matching-post:hover {
+      background: #f0fdfa !important;
+    }
+
+    /* Kbd hint for search */
+    .search-hint {
+      position: absolute;
+      right: 2rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      gap: 2px;
+      pointer-events: none;
+    }
+    .search-hint kbd {
+      background: #f5f4f1;
+      border: 1px solid #d6d3d1;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-family: var(--base-font-family);
+      color: #78716c;
+    }
+    .search input:focus ~ .search-hint,
+    .search input:not(:placeholder-shown) ~ .search-hint {
+      display: none;
     }
 
     /* Emoji sizing in features */
@@ -184,6 +223,7 @@
         placeholder: 'Search docs...',
         noData: 'No results found',
         depth: 3,
+        hideOtherSidebarContent: true,
       },
       copyCode: {
         buttonText: 'Copy',
@@ -199,6 +239,43 @@
   <!-- Syntax highlighting -->
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-go.min.js"></script>
+  <!-- Cmd+K to focus search -->
+  <script>
+    document.addEventListener('keydown', function(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        var searchInput = document.querySelector('.search input');
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+      }
+      // Escape to blur search
+      if (e.key === 'Escape') {
+        var searchInput = document.querySelector('.search input');
+        if (searchInput && document.activeElement === searchInput) {
+          searchInput.blur();
+        }
+      }
+    });
+
+    // Add keyboard hint to search after Docsify loads
+    document.addEventListener('DOMContentLoaded', function() {
+      var checkSearch = setInterval(function() {
+        var search = document.querySelector('.search');
+        var input = search && search.querySelector('input');
+        if (input && !search.querySelector('.search-hint')) {
+          input.setAttribute('placeholder', 'Search...');
+          var hint = document.createElement('div');
+          hint.className = 'search-hint';
+          hint.innerHTML = '<kbd>⌘</kbd><kbd>K</kbd>';
+          search.style.position = 'relative';
+          search.appendChild(hint);
+          clearInterval(checkSearch);
+        }
+      }, 100);
+    });
+  </script>
 </body>
 </html>
 
