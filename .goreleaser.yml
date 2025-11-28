@@ -87,8 +87,14 @@ brews:
     test: |
       system "#{bin}/stack", "--version"
 
-    # Custom download strategy if needed
-    # download_strategy: CurlDownloadStrategy
+    # Post-install message
+    caveats: |
+      Get started:
+
+        stack new <branch-name>
+        stack status
+        stack sync
+        stack --help
 
 # GitHub Release configuration
 release:
