@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/javoire/stackinator/compare/v1.0.1...v1.0.2) (2025-11-28)
+
+### Bug Fixes
+
+* stackinator name ([26451a1](https://github.com/javoire/stackinator/commit/26451a1315dbde9e0bb733b3275cb3cb601a81a7))
+
 ## [1.0.1](https://github.com/javoire/stackinator/compare/v1.0.0...v1.0.1) (2025-11-28)
 
 ### Bug Fixes
