@@ -54,7 +54,7 @@ changelog:
 
 # Homebrew tap configuration
 brews:
-  - name: stack
+  - name: stackinator
     repository:
       owner: javoire
       name: homebrew-tap
