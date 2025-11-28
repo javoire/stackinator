@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Stackinator - A minimal CLI for managing stacked branches and GitHub PRs">
+  <title>Stackinator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.min.css">
+  <style>
+    :root {
+      /* Typography */
+      --base-font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --heading-font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --code-font-family: 'Space Mono', 'SF Mono', monospace;
+      --base-font-size: 16px;
+      --heading-font-weight: 600;
+
+      /* Colors - Warm amber accent on dark */
+      --theme-color: #f59e0b;
+      --base-background-color: #0f0f0f;
+      --sidebar-background: #0a0a0a;
+      --sidebar-nav-link-color: #a3a3a3;
+      --sidebar-nav-link-color--active: #f59e0b;
+      --sidebar-nav-link-border-color--active: #f59e0b;
+      --sidebar-name-color: #fafafa;
+      --base-color: #e5e5e5;
+      --heading-color: #fafafa;
+      --link-color: #f59e0b;
+      --link-color--hover: #fbbf24;
+      --code-inline-background: #1a1a1a;
+      --code-inline-color: #fcd34d;
+      --code-block-background: #0a0a0a;
+      --blockquote-border-color: #f59e0b;
+      --table-row-odd-background: #141414;
+
+      /* Layout */
+      --sidebar-width: 260px;
+      --content-max-width: 860px;
+
+      /* Code blocks */
+      --code-block-padding: 1.25em;
+      --code-block-border-radius: 8px;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #444;
+    }
+
+    /* Sidebar styling */
+    .sidebar {
+      border-right: 1px solid #1f1f1f;
+    }
+    .sidebar-nav {
+      padding: 1.5em 1em;
+    }
+    .sidebar-nav > ul > li {
+      margin-bottom: 0.5em;
+    }
+    .app-name {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      padding: 1.5rem 1rem;
+    }
+    .app-name span {
+      background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Content styling */
+    .markdown-section h1 {
+      font-size: 2.25rem;
+      letter-spacing: -0.03em;
+      border-bottom: 2px solid #1f1f1f;
+      padding-bottom: 0.5em;
+    }
+    .markdown-section h2 {
+      font-size: 1.5rem;
+      letter-spacing: -0.02em;
+      margin-top: 2.5em;
+    }
+    .markdown-section h3 {
+      color: #d4d4d4;
+    }
+
+    /* Code block header style */
+    .markdown-section pre {
+      position: relative;
+      border: 1px solid #1f1f1f;
+    }
+    .markdown-section code {
+      font-size: 0.875em;
+    }
+
+    /* Inline code */
+    .markdown-section p code,
+    .markdown-section li code {
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    /* Cover page */
+    .cover {
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%) !important;
+    }
+    .cover h1 {
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    /* Search styling */
+    .search {
+      border-bottom: 1px solid #1f1f1f !important;
+    }
+    .search input {
+      background: #141414 !important;
+      border: 1px solid #262626 !important;
+      border-radius: 6px !important;
+      color: #e5e5e5 !important;
+    }
+    .search input::placeholder {
+      color: #525252 !important;
+    }
+    .matching-post {
+      border-bottom: 1px solid #1f1f1f !important;
+    }
+
+    /* Blockquote styling */
+    .markdown-section blockquote {
+      background: #141414;
+      border-radius: 0 8px 8px 0;
+      padding: 1em 1.25em;
+    }
+
+    /* Table styling */
+    .markdown-section table {
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .markdown-section th {
+      background: #1a1a1a;
+      font-weight: 600;
+    }
+
+    /* List styling */
+    .markdown-section ul li {
+      margin: 0.5em 0;
+    }
+
+    /* Emoji sizing in features */
+    .markdown-section li > p:first-child {
+      display: inline;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">Loading...</div>
+  <script>
+    window.$docsify = {
+      name: '<span>Stackinator</span>',
+      nameLink: '/',
+      repo: 'javoire/stackinator',
+      loadSidebar: true,
+      subMaxLevel: 3,
+      auto2top: true,
+      search: {
+        placeholder: 'Search docs...',
+        noData: 'No results found',
+        depth: 3,
+      },
+      copyCode: {
+        buttonText: 'Copy',
+        successText: 'Copied!',
+      },
+    }
+  </script>
+  <!-- Docsify core -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <!-- Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <!-- Syntax highlighting -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-go.min.js"></script>
+</body>
+</html>
+

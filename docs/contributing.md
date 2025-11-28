@@ -34,6 +34,23 @@ go build -o stack
 go test ./...
 ```
 
+### Run Docs Locally
+
+The docs site uses [Docsify](https://docsify.js.org/). To preview locally:
+
+```bash
+# Using npx (no install needed)
+npx serve docs
+
+# Or with Python
+python -m http.server 8000 --directory docs
+
+# Or with PHP
+php -S localhost:8000 -t docs
+```
+
+Then open http://localhost:8000 (or the port shown).
+
 ## Project Structure
 
 - **`cmd/`**: Cobra CLI commands (root, new, status, sync, prune, etc.)
@@ -58,16 +75,19 @@ go test ./...
 ### Key Algorithms
 
 **Topological Sort** (`internal/stack/stack.go`):
+
 - Builds dependency graph from parent relationships
 - Performs Kahn's algorithm to order branches from base to tips
 - Critical for `stack sync` to rebase in correct order
 
 **Merged PR Detection** (`cmd/sync.go`):
+
 - Fetches all PRs upfront for performance (cached in single API call)
 - If parent PR is merged, updates child's parent to grandparent
 - If branch's own PR is merged, removes from stack tracking
 
 **Tree Building** (`internal/stack/stack.go`):
+
 - Constructs visual tree from parent relationships
 - Handles multiple independent stacks in same repo
 - Used by `stack status` command
@@ -75,6 +95,7 @@ go test ./...
 ### Global Flags
 
 Both `git` and `github` packages support:
+
 - `DryRun`: Print what would happen without executing mutations
 - `Verbose`: Show all git/gh commands being executed
 
@@ -87,4 +108,3 @@ When testing git operations (creating branches, stashing, etc.), always use `./t
 - **cobra**: CLI framework
 - **git**: Required in PATH
 - **gh** (GitHub CLI): Required in PATH for PR operations
-
