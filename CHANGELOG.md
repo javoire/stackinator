@@ -1,3 +1,30 @@
+## 1.0.0 (2025-11-28)
+
+### Features
+
+* add help examples and development scripts ([34c354d](https://github.com/javoire/stackinator/commit/34c354d5ccd66595b5b626ae180aaea32c1c8228))
+* add Homebrew tap setup with GoReleaser ([afa6ee1](https://github.com/javoire/stackinator/commit/afa6ee16b65647f34b73dc399b2534407ce9761a))
+* add loading spinners for slow operations ([965c9f4](https://github.com/javoire/stackinator/commit/965c9f43d93c9a7da97e1041509c523262c2b2eb))
+* add prune command with --all flag and skip pushing local-only branches ([77f42a6](https://github.com/javoire/stackinator/commit/77f42a61a4e9b23530589f6af85eb57c81a62a2a))
+* add reparent command and improve sync ([009c47d](https://github.com/javoire/stackinator/commit/009c47d16040d21826d893a80097572848ae67bb))
+* add stack rename command ([0e6623a](https://github.com/javoire/stackinator/commit/0e6623a6f4cbda002fe81fbdc79e9600cdbc42fd))
+* add stack worktree command ([ea7e088](https://github.com/javoire/stackinator/commit/ea7e0885d8d40c1bebc4f54b3889415f5a68dff1))
+* auto-track stackparent and support base branch arg ([36d6863](https://github.com/javoire/stackinator/commit/36d6863853248a29e342bca3b6560f8f2b63d2fa))
+* display stack status tree after sync completion ([fe7b215](https://github.com/javoire/stackinator/commit/fe7b215625134295ea6fb5bcff4bcdbc2f3cd2bb))
+* enhance status and new commands with better feedback ([7b49661](https://github.com/javoire/stackinator/commit/7b49661699aa5e6939845862b0fef5aadda829ea))
+* enhance sync detection, autostash, and merged branch handling ([99781e9](https://github.com/javoire/stackinator/commit/99781e981f7d82d301f3e13a1af2816fbb047782))
+* handle squash merges with rebase --onto ([2973f86](https://github.com/javoire/stackinator/commit/2973f861e19b425679d991a2323e412e04b98f54))
+* improve stack display with proper tree structure and PR URLs ([ea22c43](https://github.com/javoire/stackinator/commit/ea22c4396790e4a4b3b134c14e138ebc82716503))
+* initial implementation of stackinator CLI ([f9f747a](https://github.com/javoire/stackinator/commit/f9f747a1eedc19c01d9a4915855657f456c21405))
+* show PR URL in status and display stack after new ([03921b7](https://github.com/javoire/stackinator/commit/03921b74817eac89786cbb6445ee93b29f1e87b9)), closes [#1](https://github.com/javoire/stackinator/issues/1)
+
+### Performance Improvements
+
+* cache PR data to reduce gh API calls ([ff0b068](https://github.com/javoire/stackinator/commit/ff0b068ca0e9ae33b5c6f737c2ac6c17570ad66e))
+* optimize stack status performance and add progress spinners ([b167d86](https://github.com/javoire/stackinator/commit/b167d863898b4e07f2c0f086317ddde614556e40))
+* optimize status command and fix stack tree filtering ([304f428](https://github.com/javoire/stackinator/commit/304f4289d4deb54e54779bafa24ff1b32d5905f6))
+* parallelize network operations for faster sync, status, and prune ([59669c4](https://github.com/javoire/stackinator/commit/59669c411fcf0fdb211e88ce8bc4bdbdfa95090f))
+
 ## 1.0.0 (2025-11-26)
 
 ### Features
