@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/javoire/stackinator/compare/v1.0.0...v1.0.1) (2025-11-28)
+
+### Bug Fixes
+
+* combine semantic-release and goreleaser into single workflow ([47dd4ac](https://github.com/javoire/stackinator/commit/47dd4acd108c7c9d3d86eb1a1efe3ff28b11589d))
+
 ## 1.0.0 (2025-11-28)
 
 ### Features
