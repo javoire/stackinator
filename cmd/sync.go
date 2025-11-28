@@ -269,7 +269,6 @@ func runSync() error {
 		fmt.Printf("%s Processing %s...\n", progress, branch.Name)
 
 		// Check if parent PR is merged
-		parentUpdated := false
 		oldParent := "" // Track old parent for --onto rebase
 		parentPR := prCache[branch.Parent]
 		if parentPR != nil && parentPR.State == "MERGED" {
@@ -290,7 +289,6 @@ func runSync() error {
 				fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
 			} else {
 				branch.Parent = grandparent
-				parentUpdated = true
 			}
 		}
 
@@ -431,7 +429,7 @@ func runSync() error {
 		// Check if PR exists and update base if needed
 		pr := prCache[branch.Name]
 		if pr != nil {
-			if pr.Base != branch.Parent || parentUpdated {
+			if pr.Base != branch.Parent {
 				fmt.Printf("  Updating PR #%d base from %s to %s...\n", pr.Number, pr.Base, branch.Parent)
 				if err := github.UpdatePRBase(pr.Number, branch.Parent); err != nil {
 					fmt.Fprintf(os.Stderr, "  Warning: failed to update PR base: %v\n", err)
