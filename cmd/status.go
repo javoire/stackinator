@@ -364,6 +364,32 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 		} else if err != nil && verbose {
 			fmt.Printf("  ⚠ Could not check if branch is behind: %v\n", err)
 		}
+
+		// Check if local branch differs from remote (needs push)
+		if gitClient.RemoteBranchExists(branch.Name) {
+			if verbose {
+				fmt.Printf("  Checking if local branch differs from origin/%s...\n", branch.Name)
+			}
+			localHash, localErr := gitClient.GetCommitHash(branch.Name)
+			remoteHash, remoteErr := gitClient.GetCommitHash("origin/" + branch.Name)
+			if localErr == nil && remoteErr == nil && localHash != remoteHash {
+				if verbose {
+					fmt.Printf("  ✗ Local branch differs from origin/%s (needs push)\n", branch.Name)
+				}
+				issues = append(issues, fmt.Sprintf("  - Branch '%s' differs from origin (needs push)", branch.Name))
+			} else if localErr == nil && remoteErr == nil && verbose {
+				fmt.Printf("  ✓ Local branch matches origin/%s\n", branch.Name)
+			} else if verbose {
+				if localErr != nil {
+					fmt.Printf("  ⚠ Could not get local commit hash: %v\n", localErr)
+				}
+				if remoteErr != nil {
+					fmt.Printf("  ⚠ Could not get remote commit hash: %v\n", remoteErr)
+				}
+			}
+		} else if verbose {
+			fmt.Printf("  ℹ No remote branch origin/%s found\n", branch.Name)
+		}
 	}
 
 	return &syncIssuesResult{
