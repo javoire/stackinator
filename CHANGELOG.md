@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/javoire/stackinator/compare/v1.1.0...v1.1.1) (2025-12-01)
+
+### Bug Fixes
+
+* add missing RemoteBranchExists mock expectations in tests ([70e3ea7](https://github.com/javoire/stackinator/commit/70e3ea7cd553a4f75870f8b2cb88e7549afff8f8))
+* detect when local branch differs from remote ([f88f349](https://github.com/javoire/stackinator/commit/f88f3490dfaf26fbd959dff8c2a4e0b262105259))
+
 ## [1.1.0](https://github.com/javoire/stackinator/compare/v1.0.3...v1.1.0) (2025-11-28)
 
 ### Features
