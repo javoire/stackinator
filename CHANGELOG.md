@@ -1,3 +1,9 @@
+## [1.2.1](https://github.com/javoire/stackinator/compare/v1.2.0...v1.2.1) (2025-12-01)
+
+### Bug Fixes
+
+* allow reparent on branches not in a stack ([7c87f7a](https://github.com/javoire/stackinator/commit/7c87f7ad34e1d4a0921bfbef2310b4c6ca7d4d37))
+
 ## [1.2.0](https://github.com/javoire/stackinator/compare/v1.1.1...v1.2.0) (2025-12-01)
 
 ### Features
