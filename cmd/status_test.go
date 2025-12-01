@@ -211,6 +211,7 @@ func TestDetectSyncIssues(t *testing.T) {
 			prCache: make(map[string]*github.PRInfo),
 			setupMocks: func(mockGit *testutil.MockGitClient) {
 				mockGit.On("IsCommitsBehind", "feature-a", "main").Return(true, nil)
+				mockGit.On("RemoteBranchExists", "feature-a").Return(false)
 			},
 			expectedIssues: 1,
 			expectedMerged: 0,
@@ -240,6 +241,7 @@ func TestDetectSyncIssues(t *testing.T) {
 			setupMocks: func(mockGit *testutil.MockGitClient) {
 				mockGit.On("GetDefaultBranch").Return("main")
 				mockGit.On("IsCommitsBehind", "feature-b", "feature-a").Return(false, nil)
+				mockGit.On("RemoteBranchExists", "feature-b").Return(false)
 			},
 			expectedIssues: 1, // Issue because parent is merged
 			expectedMerged: 0,
