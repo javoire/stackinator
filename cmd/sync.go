@@ -129,10 +129,6 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		fmt.Printf("✓ Added '%s' to stack with parent '%s'\n", originalBranch, baseBranch)
 	}
 
-	fmt.Println()
-	fmt.Println("Syncing stack...")
-	fmt.Println()
-
 	// Start parallel fetch operations (git fetch and GitHub PR fetch)
 	// These are the slowest operations and have no dependencies between them
 	var wg sync.WaitGroup
