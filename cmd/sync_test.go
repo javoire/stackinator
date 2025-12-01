@@ -18,6 +18,9 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
 
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
 		// Setup: Get current branch
 		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
 		// Check working tree
@@ -79,6 +82,9 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
 
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
 		// Setup
 		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
@@ -141,6 +147,9 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
 
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
 		// Setup
 		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
@@ -209,12 +218,18 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
 
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
 		// Setup
 		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
 		// Working tree is dirty
 		mockGit.On("IsWorkingTreeClean").Return(false, nil)
 		// Stash changes
 		mockGit.On("Stash", "stack-sync-autostash").Return(nil)
+		// Save sync state in case of conflict
+		mockGit.On("SetConfig", "stack.sync.stashed", "true").Return(nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-a").Return(nil)
 
 		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
 		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
@@ -245,8 +260,10 @@ func TestRunSyncStashHandling(t *testing.T) {
 
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 
-		// Restore stash
+		// Restore stash and clean up sync state
 		mockGit.On("StashPop").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
 		err := runSync(mockGit, mockGH)
 
@@ -260,9 +277,13 @@ func TestRunSyncErrorHandling(t *testing.T) {
 	testutil.SetupTest()
 	defer testutil.TeardownTest()
 
-	t.Run("rebase conflict", func(t *testing.T) {
+	t.Run("rebase conflict without stash", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
 
 		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
 		mockGit.On("IsWorkingTreeClean").Return(true, nil)
@@ -273,7 +294,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		stackParents := map[string]string{
 			"feature-a": "main",
 		}
-		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 		mockGit.On("Fetch").Return(nil)
 		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
@@ -288,8 +309,57 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		// Rebase fails
+		// Rebase fails - no stash to pop since working tree was clean
 		mockGit.On("Rebase", "origin/main").Return(fmt.Errorf("rebase conflict"))
+
+		err := runSync(mockGit, mockGH)
+
+		assert.Error(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+
+	t.Run("rebase conflict with stash preserves stash for --resume", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+		// Working tree is dirty - will stash
+		mockGit.On("IsWorkingTreeClean").Return(false, nil)
+		mockGit.On("Stash", "stack-sync-autostash").Return(nil)
+		// Save sync state
+		mockGit.On("SetConfig", "stack.sync.stashed", "true").Return(nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-a").Return(nil)
+
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		mockGit.On("Fetch").Return(nil)
+		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		// Rebase fails - stash should NOT be popped (preserved for --resume)
+		mockGit.On("Rebase", "origin/main").Return(fmt.Errorf("rebase conflict"))
+		// Note: StashPop is NOT called because rebaseConflict=true
 
 		err := runSync(mockGit, mockGH)
 
@@ -342,6 +412,10 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 	mockGit := new(testutil.MockGitClient)
 	mockGH := new(testutil.MockGitHubClient)
 
+	// Setup: Check for existing sync state (none)
+	mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+	mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+
 	mockGit.On("GetCurrentBranch").Return("main", nil)
 	mockGit.On("IsWorkingTreeClean").Return(true, nil)
 	mockGit.On("GetConfig", "branch.main.stackparent").Return("")
@@ -367,3 +441,133 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 	mockGH.AssertExpectations(t)
 }
 
+func TestRunSyncResume(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("resume fails when no saved state", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// No saved state
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+
+		// Set resume flag
+		syncResume = true
+		defer func() { syncResume = false }()
+
+		err := runSync(mockGit, mockGH)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no interrupted sync to resume")
+		mockGit.AssertExpectations(t)
+	})
+
+	t.Run("resume succeeds with saved state", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Saved state exists
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("true")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
+
+		// Set resume flag
+		syncResume = true
+		defer func() { syncResume = false }()
+
+		// Stack parent check uses the saved originalBranch
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		mockGit.On("Fetch").Return(nil)
+		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+
+		// Process feature-a
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("Push", "feature-a", true).Return(nil)
+
+		// Return to original branch (called twice: once for return, once for displayStatusAfterSync)
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		// For displayStatusAfterSync
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+
+		// Restore stash and clean up state
+		mockGit.On("StashPop").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+
+		err := runSync(mockGit, mockGH)
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+
+	t.Run("orphaned state is cleaned up on fresh sync", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Orphaned state exists but --resume not passed
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("true")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("old-branch")
+		// Clean up orphaned state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		mockGit.On("Fetch").Return(nil)
+		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+
+		// Process feature-a
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("Push", "feature-a", true).Return(nil)
+
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+
+		err := runSync(mockGit, mockGH)
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+}
