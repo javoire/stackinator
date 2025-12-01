@@ -571,4 +571,3 @@ func TestRunSyncResume(t *testing.T) {
 		mockGH.AssertExpectations(t)
 	})
 }
-
