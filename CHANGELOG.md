@@ -1,3 +1,13 @@
+## [1.2.0](https://github.com/javoire/stackinator/compare/v1.1.1...v1.2.0) (2025-12-01)
+
+### Features
+
+* add --resume flag to stack sync for rebase conflict recovery ([fbf317c](https://github.com/javoire/stackinator/commit/fbf317c7776789f6e62918e4b20c7db3139fa152))
+
+### Bug Fixes
+
+* add missing mock and disable CGO in test script ([df1ee8b](https://github.com/javoire/stackinator/commit/df1ee8b341d0c31f3b9445daa9b681cf6c62f028))
+
 ## [1.1.1](https://github.com/javoire/stackinator/compare/v1.1.0...v1.1.1) (2025-12-01)
 
 ### Bug Fixes
