@@ -12,14 +12,15 @@ import (
 var reparentCmd = &cobra.Command{
 	Use:   "reparent <new-parent>",
 	Short: "Change the parent of the current branch",
-	Long: `Change the parent branch of the current branch in the stack.
+	Long: `Change or set the parent branch of the current branch.
 
 This command updates the stack parent relationship in git config and, if a PR
 exists for the current branch, automatically updates the PR base to match the
 new parent.
 
-This is useful for reorganizing your stack when you want to change which branch
-a feature is based on.`,
+This is useful for:
+- Adding an existing branch to a stack (when no parent is currently set)
+- Reorganizing your stack when you want to change which branch a feature is based on`,
 	Example: `  # Change current branch to be based on a different parent
   stack reparent feature-auth
 
@@ -49,14 +50,11 @@ func runReparent(gitClient git.GitClient, githubClient github.GitHubClient, newP
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// Check if current branch is a stack branch
+	// Get current parent (may be empty if not in a stack)
 	currentParent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
-	if currentParent == "" {
-		return fmt.Errorf("branch %s is not part of a stack (no parent set)", currentBranch)
-	}
 
 	// Check if new parent is the same as current parent
-	if newParent == currentParent {
+	if currentParent != "" && newParent == currentParent {
 		fmt.Printf("Branch %s is already parented to %s\n", currentBranch, newParent)
 		return nil
 	}
@@ -76,7 +74,12 @@ func runReparent(gitClient git.GitClient, githubClient github.GitHubClient, newP
 		return fmt.Errorf("cannot reparent to %s: it is a descendant of %s (would create a cycle)", newParent, currentBranch)
 	}
 
-	fmt.Printf("Reparenting %s: %s -> %s\n", currentBranch, currentParent, newParent)
+	// Print appropriate message based on whether we're adding to stack or reparenting
+	if currentParent == "" {
+		fmt.Printf("Adding %s to stack with parent %s\n", currentBranch, newParent)
+	} else {
+		fmt.Printf("Reparenting %s: %s -> %s\n", currentBranch, currentParent, newParent)
+	}
 
 	// Update git config
 	configKey := fmt.Sprintf("branch.%s.stackparent", currentBranch)
