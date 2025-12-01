@@ -79,11 +79,11 @@ func TestFilterMergedBranches(t *testing.T) {
 	defer testutil.TeardownTest()
 
 	tests := []struct {
-		name            string
-		tree            *stack.TreeNode
-		prCache         map[string]*github.PRInfo
-		currentBranch   string
-		expectFiltered  bool
+		name             string
+		tree             *stack.TreeNode
+		prCache          map[string]*github.PRInfo
+		currentBranch    string
+		expectFiltered   bool
 		expectedBranches []string
 	}{
 		{
@@ -103,7 +103,7 @@ func TestFilterMergedBranches(t *testing.T) {
 				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
 				"feature-b": testutil.NewPRInfo(2, "OPEN", "feature-a", "Feature B", "url"),
 			},
-			currentBranch: "feature-b",
+			currentBranch:    "feature-b",
 			expectedBranches: []string{"main", "feature-a", "feature-b"}, // Keep feature-a because it has children
 		},
 		{
@@ -120,7 +120,7 @@ func TestFilterMergedBranches(t *testing.T) {
 			prCache: map[string]*github.PRInfo{
 				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
 			},
-			currentBranch: "main",
+			currentBranch:    "main",
 			expectedBranches: []string{"main"}, // Filter out feature-a because it's a merged leaf
 		},
 		{
@@ -137,7 +137,7 @@ func TestFilterMergedBranches(t *testing.T) {
 			prCache: map[string]*github.PRInfo{
 				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
 			},
-			currentBranch: "feature-a",
+			currentBranch:    "feature-a",
 			expectedBranches: []string{"main", "feature-a"}, // Keep feature-a because it's current branch
 		},
 	}
@@ -196,12 +196,12 @@ func TestDetectSyncIssues(t *testing.T) {
 	defer testutil.TeardownTest()
 
 	tests := []struct {
-		name                string
-		stackBranches       []stack.StackBranch
-		prCache             map[string]*github.PRInfo
-		setupMocks          func(*testutil.MockGitClient)
-		expectedIssues      int
-		expectedMerged      int
+		name           string
+		stackBranches  []stack.StackBranch
+		prCache        map[string]*github.PRInfo
+		setupMocks     func(*testutil.MockGitClient)
+		expectedIssues int
+		expectedMerged int
 	}{
 		{
 			name: "branch behind parent",
@@ -269,4 +269,3 @@ func TestDetectSyncIssues(t *testing.T) {
 		})
 	}
 }
-
