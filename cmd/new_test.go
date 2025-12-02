@@ -16,14 +16,14 @@ func TestRunNew(t *testing.T) {
 		name           string
 		branchName     string
 		explicitParent string
-		setupMocks     func(*testutil.MockGitClient, *testutil.MockGitHubClient)
+		setupMocks     func(*testutil.MockGitClient)
 		expectError    bool
 	}{
 		{
 			name:           "create branch with explicit parent",
 			branchName:     "feature-b",
 			explicitParent: "feature-a",
-			setupMocks: func(mockGit *testutil.MockGitClient, mockGH *testutil.MockGitHubClient) {
+			setupMocks: func(mockGit *testutil.MockGitClient) {
 				// Branch doesn't exist
 				mockGit.On("BranchExists", "feature-b").Return(false)
 				// Parent exists
@@ -39,7 +39,7 @@ func TestRunNew(t *testing.T) {
 			name:           "create branch from current",
 			branchName:     "feature-b",
 			explicitParent: "",
-			setupMocks: func(mockGit *testutil.MockGitClient, mockGH *testutil.MockGitHubClient) {
+			setupMocks: func(mockGit *testutil.MockGitClient) {
 				// Branch doesn't exist
 				mockGit.On("BranchExists", "feature-b").Return(false)
 				// Get current branch
@@ -57,7 +57,7 @@ func TestRunNew(t *testing.T) {
 			name:           "error when branch exists",
 			branchName:     "feature-a",
 			explicitParent: "main",
-			setupMocks: func(mockGit *testutil.MockGitClient, mockGH *testutil.MockGitHubClient) {
+			setupMocks: func(mockGit *testutil.MockGitClient) {
 				// Branch already exists
 				mockGit.On("BranchExists", "feature-a").Return(true)
 			},
@@ -67,7 +67,7 @@ func TestRunNew(t *testing.T) {
 			name:           "error when parent doesn't exist",
 			branchName:     "feature-b",
 			explicitParent: "non-existent",
-			setupMocks: func(mockGit *testutil.MockGitClient, mockGH *testutil.MockGitHubClient) {
+			setupMocks: func(mockGit *testutil.MockGitClient) {
 				// Branch doesn't exist
 				mockGit.On("BranchExists", "feature-b").Return(false)
 				// Parent doesn't exist
@@ -80,14 +80,13 @@ func TestRunNew(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockGit := new(testutil.MockGitClient)
-			mockGH := new(testutil.MockGitHubClient)
 
-			tt.setupMocks(mockGit, mockGH)
+			tt.setupMocks(mockGit)
 
 			// Set dryRun to true to skip the display logic at the end
 			dryRun = true
 
-			err := runNew(mockGit, mockGH, tt.branchName, tt.explicitParent)
+			err := runNew(mockGit, tt.branchName, tt.explicitParent)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -96,7 +95,6 @@ func TestRunNew(t *testing.T) {
 			}
 
 			mockGit.AssertExpectations(t)
-			mockGH.AssertExpectations(t)
 
 			// Reset dryRun
 			dryRun = false
@@ -110,12 +108,11 @@ func TestRunNewValidation(t *testing.T) {
 
 	t.Run("validates branch name", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
-		mockGH := new(testutil.MockGitHubClient)
 
 		// Branch already exists
 		mockGit.On("BranchExists", "existing-branch").Return(true)
 
-		err := runNew(mockGit, mockGH, "existing-branch", "main")
+		err := runNew(mockGit, "existing-branch", "main")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already exists")
@@ -125,14 +122,13 @@ func TestRunNewValidation(t *testing.T) {
 
 	t.Run("validates parent exists", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
-		mockGH := new(testutil.MockGitHubClient)
 
 		// Branch doesn't exist
 		mockGit.On("BranchExists", "new-branch").Return(false)
 		// Parent doesn't exist
 		mockGit.On("BranchExists", "non-existent-parent").Return(false)
 
-		err := runNew(mockGit, mockGH, "new-branch", "non-existent-parent")
+		err := runNew(mockGit, "new-branch", "non-existent-parent")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "does not exist")
@@ -146,7 +142,6 @@ func TestRunNewSetConfig(t *testing.T) {
 	defer testutil.TeardownTest()
 
 	mockGit := new(testutil.MockGitClient)
-	mockGH := new(testutil.MockGitHubClient)
 
 	// Branch doesn't exist
 	mockGit.On("BranchExists", "new-branch").Return(false)
@@ -158,7 +153,7 @@ func TestRunNewSetConfig(t *testing.T) {
 	mockGit.On("SetConfig", "branch.new-branch.stackparent", "parent-branch").Return(nil)
 
 	dryRun = true
-	err := runNew(mockGit, mockGH, "new-branch", "parent-branch")
+	err := runNew(mockGit, "new-branch", "parent-branch")
 	dryRun = false
 
 	assert.NoError(t, err)
@@ -170,7 +165,6 @@ func TestRunNewFromCurrentBranch(t *testing.T) {
 	defer testutil.TeardownTest()
 
 	mockGit := new(testutil.MockGitClient)
-	mockGH := new(testutil.MockGitHubClient)
 
 	// Branch doesn't exist
 	mockGit.On("BranchExists", "new-branch").Return(false)
@@ -184,7 +178,7 @@ func TestRunNewFromCurrentBranch(t *testing.T) {
 	mockGit.On("SetConfig", "branch.new-branch.stackparent", "current-branch").Return(nil)
 
 	dryRun = true
-	err := runNew(mockGit, mockGH, "new-branch", "")
+	err := runNew(mockGit, "new-branch", "")
 	dryRun = false
 
 	assert.NoError(t, err)
@@ -197,13 +191,12 @@ func TestRunNewErrorHandling(t *testing.T) {
 
 	t.Run("error on CreateBranch failure", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
-		mockGH := new(testutil.MockGitHubClient)
 
 		mockGit.On("BranchExists", "new-branch").Return(false)
 		mockGit.On("BranchExists", "parent").Return(true)
 		mockGit.On("CreateBranch", "new-branch", "parent").Return(fmt.Errorf("git error"))
 
-		err := runNew(mockGit, mockGH, "new-branch", "parent")
+		err := runNew(mockGit, "new-branch", "parent")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create branch")
@@ -213,14 +206,13 @@ func TestRunNewErrorHandling(t *testing.T) {
 
 	t.Run("error on SetConfig failure", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
-		mockGH := new(testutil.MockGitHubClient)
 
 		mockGit.On("BranchExists", "new-branch").Return(false)
 		mockGit.On("BranchExists", "parent").Return(true)
 		mockGit.On("CreateBranch", "new-branch", "parent").Return(nil)
 		mockGit.On("SetConfig", "branch.new-branch.stackparent", "parent").Return(fmt.Errorf("config error"))
 
-		err := runNew(mockGit, mockGH, "new-branch", "parent")
+		err := runNew(mockGit, "new-branch", "parent")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to set parent config")
