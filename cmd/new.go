@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/javoire/stackinator/internal/git"
-	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
@@ -37,16 +35,15 @@ will be used as the parent.`,
 		}
 
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
 
-		if err := runNew(gitClient, githubClient, branchName, parent); err != nil {
+		if err := runNew(gitClient, branchName, parent); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
 }
 
-func runNew(gitClient git.GitClient, githubClient github.GitHubClient, branchName string, explicitParent string) error {
+func runNew(gitClient git.GitClient, branchName string, explicitParent string) error {
 	// Check if branch already exists
 	if gitClient.BranchExists(branchName) {
 		return fmt.Errorf("branch %s already exists", branchName)
@@ -97,8 +94,8 @@ func runNew(gitClient git.GitClient, githubClient github.GitHubClient, branchNam
 		fmt.Printf("✓ Created branch %s with parent %s\n", branchName, parent)
 		fmt.Println()
 
-		// Show the full stack
-		if err := showStack(gitClient, githubClient); err != nil {
+		// Show the local stack (fast, no PR fetching)
+		if err := showStack(gitClient); err != nil {
 			// Don't fail if we can't show the stack, just warn
 			fmt.Fprintf(os.Stderr, "Warning: failed to display stack: %v\n", err)
 		}
@@ -107,8 +104,8 @@ func runNew(gitClient git.GitClient, githubClient github.GitHubClient, branchNam
 	return nil
 }
 
-// showStack displays the current stack structure
-func showStack(gitClient git.GitClient, githubClient github.GitHubClient) error {
+// showStack displays the current stack structure (local only, no PR fetching)
+func showStack(gitClient git.GitClient) error {
 	currentBranch, err := gitClient.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
@@ -119,97 +116,8 @@ func showStack(gitClient git.GitClient, githubClient github.GitHubClient) error 
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
-	// Fetch all PRs upfront for better performance
-	prCache, err := githubClient.GetAllPRs()
-	if err != nil {
-		// If fetching PRs fails, just continue without PR info
-		prCache = make(map[string]*github.PRInfo)
-	}
-
-	// Filter out branches with merged PRs from the tree (but keep current branch)
-	tree = filterMergedBranchesForNew(tree, prCache, currentBranch)
-
-	printStackTree(gitClient, tree, "", true, currentBranch, prCache)
+	// Use the same local tree printer as stack show
+	printLocalStackTree(tree, currentBranch, false)
 
 	return nil
-}
-
-// filterMergedBranchesForNew removes branches with merged PRs from the tree,
-// but only if they don't have children (to keep the stack structure visible)
-// and they are not the current branch (always show where user is)
-func filterMergedBranchesForNew(node *stack.TreeNode, prCache map[string]*github.PRInfo, currentBranch string) *stack.TreeNode {
-	if node == nil {
-		return nil
-	}
-
-	// Filter children recursively first
-	var filteredChildren []*stack.TreeNode
-	for _, child := range node.Children {
-		// Recurse first to process all descendants
-		filtered := filterMergedBranchesForNew(child, prCache, currentBranch)
-
-		// Only filter out merged branches if they have no children
-		// (i.e., they're leaf nodes) AND they're not the current branch
-		if pr, exists := prCache[child.Name]; exists && pr.State == "MERGED" {
-			// Always keep the current branch, even if merged
-			if child.Name == currentBranch {
-				filteredChildren = append(filteredChildren, filtered)
-			} else if filtered != nil && len(filtered.Children) > 0 {
-				// If this merged branch still has children after filtering, keep it
-				// so the stack structure remains visible
-				filteredChildren = append(filteredChildren, filtered)
-			}
-			// Otherwise skip this merged leaf branch
-		} else {
-			// Not merged, keep it
-			if filtered != nil {
-				filteredChildren = append(filteredChildren, filtered)
-			}
-		}
-	}
-
-	node.Children = filteredChildren
-	return node
-}
-
-// printStackTree is a simplified version of the status tree printer
-func printStackTree(gitClient git.GitClient, node *stack.TreeNode, prefix string, isLast bool, currentBranch string, prCache map[string]*github.PRInfo) {
-	if node == nil {
-		return
-	}
-
-	// Flatten the tree into a vertical list
-	printStackTreeVertical(gitClient, node, currentBranch, prCache, false)
-}
-
-func printStackTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
-	if node == nil {
-		return
-	}
-
-	marker := ""
-	if node.Name == currentBranch {
-		marker = " *"
-	}
-
-	// Get PR info from cache
-	prInfo := ""
-	if node.Name != stack.GetBaseBranch(gitClient) {
-		if pr, exists := prCache[node.Name]; exists {
-			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
-		}
-	}
-
-	// Print pipe if needed
-	if isPipe {
-		fmt.Println("  |")
-	}
-
-	// Print current node
-	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
-
-	// Print children vertically
-	for _, child := range node.Children {
-		printStackTreeVertical(gitClient, child, currentBranch, prCache, true)
-	}
 }

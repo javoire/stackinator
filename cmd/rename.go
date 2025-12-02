@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/javoire/stackinator/internal/git"
-	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
@@ -31,16 +30,15 @@ The command must be run while on the branch you want to rename.`,
 		newName := args[0]
 
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
 
-		if err := runRename(gitClient, githubClient, newName); err != nil {
+		if err := runRename(gitClient, newName); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
 }
 
-func runRename(gitClient git.GitClient, githubClient github.GitHubClient, newName string) error {
+func runRename(gitClient git.GitClient, newName string) error {
 	// Get current branch
 	oldName, err := gitClient.GetCurrentBranch()
 	if err != nil {
@@ -103,8 +101,8 @@ func runRename(gitClient git.GitClient, githubClient github.GitHubClient, newNam
 		fmt.Printf("✓ Successfully renamed branch %s -> %s\n", oldName, newName)
 		fmt.Println()
 
-		// Show the updated stack
-		if err := showStack(gitClient, githubClient); err != nil {
+		// Show the updated stack (local only, fast)
+		if err := showStack(gitClient); err != nil {
 			// Don't fail if we can't show the stack, just warn
 			fmt.Fprintf(os.Stderr, "Warning: failed to display stack: %v\n", err)
 		}

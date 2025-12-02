@@ -64,6 +64,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(newCmd)
+	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(pruneCmd)
