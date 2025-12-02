@@ -1,3 +1,9 @@
+## [1.2.2](https://github.com/javoire/stackinator/compare/v1.2.1...v1.2.2) (2025-12-02)
+
+### Bug Fixes
+
+* improve sync robustness for remote branch detection and PR handling ([ff3ea99](https://github.com/javoire/stackinator/commit/ff3ea9954352332af3f1697fd492a5c0cd08fc6a))
+
 ## [1.2.1](https://github.com/javoire/stackinator/compare/v1.2.0...v1.2.1) (2025-12-01)
 
 ### Bug Fixes
