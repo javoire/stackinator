@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/javoire/stackinator/compare/v1.2.2...v1.3.0) (2025-12-02)
+
+### Features
+
+* add stack show command for fast local stack display ([42a4b87](https://github.com/javoire/stackinator/commit/42a4b87db9e4762f2c1e4508cc3f76028ec80274))
+
 ## [1.2.2](https://github.com/javoire/stackinator/compare/v1.2.1...v1.2.2) (2025-12-02)
 
 ### Bug Fixes
