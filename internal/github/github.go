@@ -105,9 +105,11 @@ func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 	}
 
 	// Create a map of branch name -> PR info
+	// When multiple PRs exist for the same branch, prefer OPEN over closed/merged
 	prMap := make(map[string]*PRInfo)
 	for _, pr := range prs {
-		prMap[pr.HeadRefName] = &PRInfo{
+		existing, exists := prMap[pr.HeadRefName]
+		prInfo := &PRInfo{
 			Number:           pr.Number,
 			State:            pr.State,
 			Base:             pr.BaseRefName,
@@ -115,6 +117,15 @@ func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 			URL:              pr.URL,
 			MergeStateStatus: pr.MergeStateStatus,
 		}
+
+		if !exists {
+			// No PR for this branch yet, add it
+			prMap[pr.HeadRefName] = prInfo
+		} else if pr.State == "OPEN" && existing.State != "OPEN" {
+			// New PR is open and existing is not - prefer the open one
+			prMap[pr.HeadRefName] = prInfo
+		}
+		// Otherwise keep the existing PR (first open PR wins, or first closed if no open)
 	}
 
 	return prMap, nil

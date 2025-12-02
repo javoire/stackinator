@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,9 @@ import (
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/spf13/cobra"
 )
+
+// errAlreadyPrinted is a sentinel error indicating the error message was already displayed
+var errAlreadyPrinted = errors.New("")
 
 var (
 	syncForce  bool
@@ -63,7 +67,10 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
 		githubClient := github.NewGitHubClient()
 
 		if err := runSync(gitClient, githubClient); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			// Don't print if error was already displayed with detailed message
+			if !errors.Is(err, errAlreadyPrinted) {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			}
 			os.Exit(1)
 		}
 	},
@@ -353,7 +360,27 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 		// Sync with remote branch if it exists (unless --force is set)
 		remoteBranch := "origin/" + branch.Name
-		branchExistsOnRemote := remoteBranches[branch.Name]
+		// Check if we have a local tracking ref for the remote branch
+		hasLocalRef := remoteBranches[branch.Name]
+		// Branch exists on remote if we have local tracking ref OR if there's a PR for it
+		// (PR existence proves branch is on origin, even if local ref is missing)
+		branchExistsOnRemote := hasLocalRef || prCache[branch.Name] != nil
+
+		// If branch is on remote but we don't have the local tracking ref, fetch it
+		if branchExistsOnRemote && !hasLocalRef {
+			if git.Verbose {
+				fmt.Printf("  Fetching remote branch (local tracking ref missing)...\n")
+			}
+			if err := gitClient.FetchBranch(branch.Name); err != nil {
+				// If fetch fails, the branch might have been deleted on remote
+				// Fall back to treating it as a new branch
+				if git.Verbose {
+					fmt.Printf("  Could not fetch remote branch, treating as new branch\n")
+				}
+				branchExistsOnRemote = false
+			}
+		}
+
 		if branchExistsOnRemote && !syncForce {
 			// Check if local and remote have diverged
 			localHash, err := gitClient.GetCommitHash(branch.Name)
@@ -393,10 +420,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 					fmt.Fprintf(os.Stderr, "\n  To resolve:\n")
 					fmt.Fprintf(os.Stderr, "    1. Check what's on remote: git log origin/%s\n", branch.Name)
 					fmt.Fprintf(os.Stderr, "    2. Check what's local: git log %s\n", branch.Name)
-					fmt.Fprintf(os.Stderr, "    3. If remote is correct: git reset --hard origin/%s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "    3. If remote is correct: git reset --hard origin/%s, then run 'stack sync'\n", branch.Name)
 					fmt.Fprintf(os.Stderr, "    4. If local is correct: stack sync --force\n")
-					fmt.Fprintf(os.Stderr, "    5. Then run 'stack sync' again\n")
-					return fmt.Errorf("branch %s has diverged from remote", branch.Name)
+					return errAlreadyPrinted
 				}
 			} else if git.Verbose {
 				fmt.Printf("  Local branch is up-to-date with origin/%s\n", branch.Name)
