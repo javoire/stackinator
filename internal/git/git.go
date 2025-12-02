@@ -188,11 +188,14 @@ func (c *gitClient) RebaseOnto(newBase, oldBase, currentBranch string) error {
 
 // FetchBranch fetches a specific branch from origin to update tracking info
 func (c *gitClient) FetchBranch(branch string) error {
+	// Use refspec to ensure the tracking ref is created/updated
+	// git fetch origin <branch> alone only updates FETCH_HEAD, not refs/remotes/origin/<branch>
+	refspec := fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)
 	if DryRun {
-		fmt.Printf("  [DRY RUN] git fetch origin %s\n", branch)
+		fmt.Printf("  [DRY RUN] git fetch origin %s\n", refspec)
 		return nil
 	}
-	_, err := c.runCmd("fetch", "origin", branch)
+	_, err := c.runCmd("fetch", "origin", refspec)
 	return err
 }
 
