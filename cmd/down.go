@@ -86,5 +86,3 @@ func runDown(gitClient git.GitClient) error {
 	fmt.Printf("Switched to child branch: %s\n", targetBranch)
 	return nil
 }
-
-

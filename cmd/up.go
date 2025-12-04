@@ -49,5 +49,3 @@ func runUp(gitClient git.GitClient) error {
 	fmt.Printf("Switched to parent branch: %s\n", parent)
 	return nil
 }
-
-
