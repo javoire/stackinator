@@ -28,6 +28,7 @@ stack status --no-pr
 ```
 
 Flags:
+
 - `--no-pr` - Skip fetching PR information (faster)
 
 ## `stack sync`
@@ -51,7 +52,8 @@ stack sync --force
 ```
 
 Flags:
-- `--force`, `-f` - Force push even if local and remote have diverged (use with caution)
+
+- `--force`, `-f` - Use `--force` instead of `--force-with-lease` for push (bypasses safety checks)
 
 ## `stack parent`
 
@@ -80,6 +82,7 @@ stack prune --dry-run
 ```
 
 Flags:
+
 - `--all`, `-a` - Check all local branches, not just stack branches
 - `--force`, `-f` - Force delete branches even if they have unmerged commits
 
@@ -132,6 +135,7 @@ stack worktree --prune
 ```
 
 Flags:
+
 - `--prune` - Remove worktrees for branches with merged PRs
 
 ## `stack version`
