@@ -55,14 +55,14 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
-		mockGit.On("Push", "feature-a", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
 		// Process feature-b
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
 		mockGit.On("Rebase", "feature-a").Return(nil)
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
-		mockGit.On("Push", "feature-b", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
 		// Return to original branch
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 
@@ -126,7 +126,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
 		mockGit.On("RebaseOnto", "origin/main", "feature-a", "feature-b").Return(nil)
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
-		mockGit.On("Push", "feature-b", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
 
 		// Return to original branch
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
@@ -187,7 +187,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
-		mockGit.On("Push", "feature-a", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
 
 		// Process feature-b
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
@@ -195,7 +195,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
 		mockGit.On("Rebase", "feature-a").Return(nil)
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
-		mockGit.On("Push", "feature-b", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
 		// Update PR base!
 		mockGH.On("UpdatePRBase", 2, "feature-a").Return(nil)
 
@@ -256,7 +256,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
-		mockGit.On("Push", "feature-a", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
 
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 
@@ -502,7 +502,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
-		mockGit.On("Push", "feature-a", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
 
 		// Return to original branch (called twice: once for return, once for displayStatusAfterSync)
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
@@ -559,7 +559,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
-		mockGit.On("Push", "feature-a", true).Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
 
 		// Return to original branch
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)

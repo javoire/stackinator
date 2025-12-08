@@ -77,7 +77,7 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
 }
 
 func init() {
-	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Force push even if local and remote have diverged (use with caution)")
+	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Use --force instead of --force-with-lease for push (bypasses safety checks)")
 	syncCmd.Flags().BoolVarP(&syncResume, "resume", "r", false, "Resume a sync after resolving rebase conflicts")
 }
 
@@ -412,17 +412,11 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 						return fmt.Errorf("failed to fast-forward: %w", err)
 					}
 				} else {
-					// Branches have diverged - this is NOT safe to auto-resolve
-					fmt.Fprintf(os.Stderr, "  Error: local and remote have diverged for %s\n", branch.Name)
-					fmt.Fprintf(os.Stderr, "\n  This usually means:\n")
-					fmt.Fprintf(os.Stderr, "    - Someone else force-pushed to the remote, OR\n")
-					fmt.Fprintf(os.Stderr, "    - You have local commits that differ from remote\n")
-					fmt.Fprintf(os.Stderr, "\n  To resolve:\n")
-					fmt.Fprintf(os.Stderr, "    1. Check what's on remote: git log origin/%s\n", branch.Name)
-					fmt.Fprintf(os.Stderr, "    2. Check what's local: git log %s\n", branch.Name)
-					fmt.Fprintf(os.Stderr, "    3. If remote is correct: git reset --hard origin/%s, then run 'stack sync'\n", branch.Name)
-					fmt.Fprintf(os.Stderr, "    4. If local is correct: stack sync --force\n")
-					return errAlreadyPrinted
+					// Branches have diverged - this is normal after rebasing onto an updated parent
+					// --force-with-lease will safely handle this during push
+					if git.Verbose {
+						fmt.Printf("  Local and remote have diverged (normal after rebase)\n")
+					}
 				}
 			} else if git.Verbose {
 				fmt.Printf("  Local branch is up-to-date with origin/%s\n", branch.Name)
@@ -485,28 +479,37 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 						return gitClient.ForcePush(branch.Name)
 					}
 
-					// Fetch one more time right before push to ensure --force-with-lease has fresh tracking info
-					// This prevents "stale info" errors if the remote was updated during our rebase
+					// Fetch one more time right before push to get the current remote SHA
 					if git.Verbose {
 						fmt.Printf("  Refreshing remote tracking ref before push...\n")
 					}
 					if err := gitClient.FetchBranch(branch.Name); err != nil {
-						// Non-fatal, continue with push
+						// Non-fatal, continue with push using plain --force-with-lease
 						if git.Verbose {
 							fmt.Fprintf(os.Stderr, "  Note: could not refresh tracking ref: %v\n", err)
 						}
+						return gitClient.Push(branch.Name, true)
 					}
 
-					// Use --force-with-lease (safe force push)
-					return gitClient.Push(branch.Name, true)
+					// Get the remote SHA to use with explicit --force-with-lease
+					// This avoids "stale info" errors that can occur with plain --force-with-lease
+					remoteSha, err := gitClient.GetCommitHash("origin/" + branch.Name)
+					if err != nil {
+						// Fall back to plain --force-with-lease
+						if git.Verbose {
+							fmt.Fprintf(os.Stderr, "  Note: could not get remote SHA, using plain force-with-lease: %v\n", err)
+						}
+						return gitClient.Push(branch.Name, true)
+					}
+
+					return gitClient.PushWithExpectedRemote(branch.Name, remoteSha)
 				},
 			)
 
 			if pushErr != nil {
 				if !syncForce {
-					fmt.Fprintf(os.Stderr, "\nPossible causes:\n")
-					fmt.Fprintf(os.Stderr, "  1. Remote branch was updated by someone else - try running 'stack sync' again\n")
-					fmt.Fprintf(os.Stderr, "  2. Your local branch has diverged from remote - use 'stack sync --force'\n")
+					fmt.Fprintf(os.Stderr, "\nPossible cause:\n")
+					fmt.Fprintf(os.Stderr, "  Remote branch was updated after fetch - try running 'stack sync' again\n")
 				}
 				return fmt.Errorf("push failed for %s", branch.Name)
 			}

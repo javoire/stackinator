@@ -16,6 +16,7 @@ type GitClient interface {
 	RebaseOnto(newBase, oldBase, currentBranch string) error
 	FetchBranch(branch string) error
 	Push(branch string, forceWithLease bool) error
+	PushWithExpectedRemote(branch string, expectedRemoteSha string) error
 	ForcePush(branch string) error
 	IsWorkingTreeClean() (bool, error)
 	Fetch() error
@@ -40,4 +41,3 @@ type GitClient interface {
 	RemoveWorktree(path string) error
 	ListWorktrees() ([]string, error)
 }
-

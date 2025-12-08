@@ -80,6 +80,11 @@ func (m *MockGitClient) Push(branch string, forceWithLease bool) error {
 	return args.Error(0)
 }
 
+func (m *MockGitClient) PushWithExpectedRemote(branch string, expectedRemoteSha string) error {
+	args := m.Called(branch, expectedRemoteSha)
+	return args.Error(0)
+}
+
 func (m *MockGitClient) ForcePush(branch string) error {
 	args := m.Called(branch)
 	return args.Error(0)
@@ -222,4 +227,3 @@ func (m *MockGitHubClient) IsPRMerged(prNumber int) (bool, error) {
 	args := m.Called(prNumber)
 	return args.Bool(0), args.Error(1)
 }
-

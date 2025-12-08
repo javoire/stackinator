@@ -216,6 +216,21 @@ func (c *gitClient) Push(branch string, forceWithLease bool) error {
 	return err
 }
 
+// PushWithExpectedRemote pushes a branch using --force-with-lease with an explicit expected SHA.
+// This avoids "stale info" errors that can occur with plain --force-with-lease.
+func (c *gitClient) PushWithExpectedRemote(branch string, expectedRemoteSha string) error {
+	leaseArg := fmt.Sprintf("--force-with-lease=refs/heads/%s:%s", branch, expectedRemoteSha)
+	args := []string{"push", leaseArg, "origin", branch}
+
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git %s\n", strings.Join(args, " "))
+		return nil
+	}
+
+	_, err := c.runCmd(args...)
+	return err
+}
+
 // ForcePush force pushes a branch to origin (bypasses --force-with-lease safety)
 func (c *gitClient) ForcePush(branch string) error {
 	args := []string{"push", "--force", "origin", branch}
