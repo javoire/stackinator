@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/javoire/stackinator/compare/v1.3.0...v1.3.1) (2025-12-08)
+
+### Bug Fixes
+
+* remove overly cautious divergence check and fix stale info push errors ([e4e128d](https://github.com/javoire/stackinator/commit/e4e128d0c96e183aae3335ce9fa689a6e606c4d8))
+
 ## [1.3.0](https://github.com/javoire/stackinator/compare/v1.2.2...v1.3.0) (2025-12-02)
 
 ### Features
