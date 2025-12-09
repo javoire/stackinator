@@ -21,6 +21,7 @@ var errAlreadyPrinted = errors.New("")
 var (
 	syncForce  bool
 	syncResume bool
+	syncAbort  bool
 )
 
 // Git config keys for sync state persistence
@@ -59,6 +60,9 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
   # Resume after resolving rebase conflicts
   stack sync --resume
 
+  # Abort an interrupted sync
+  stack sync --abort
+
   # Common workflow after updating main
   git checkout main && git pull
   stack sync`,
@@ -79,6 +83,7 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
 func init() {
 	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Use --force instead of --force-with-lease for push (bypasses safety checks)")
 	syncCmd.Flags().BoolVarP(&syncResume, "resume", "r", false, "Resume a sync after resolving rebase conflicts")
+	syncCmd.Flags().BoolVarP(&syncAbort, "abort", "a", false, "Abort an interrupted sync and clean up state")
 }
 
 func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
@@ -90,7 +95,59 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Check for existing sync state (from previous interrupted sync)
 	savedStashed := gitClient.GetConfig(configSyncStashed)
 	savedOriginalBranch := gitClient.GetConfig(configSyncOriginalBranch)
-	hasSavedState := savedStashed == "true"
+	hasSavedState := savedStashed == "true" || savedOriginalBranch != ""
+
+	if syncAbort {
+		// Aborting an interrupted sync
+		if !hasSavedState {
+			return fmt.Errorf("no interrupted sync to abort\n\nUse 'stack sync' to start a new sync")
+		}
+
+		fmt.Println("Aborting sync and cleaning up...")
+		fmt.Println()
+
+		// Try to abort rebase if one is in progress
+		// It's okay if this fails - there might not be an active rebase
+		if err := gitClient.AbortRebase(); err != nil {
+			if git.Verbose {
+				fmt.Fprintf(os.Stderr, "Note: no rebase to abort (already resolved or not started)\n")
+			}
+		} else {
+			fmt.Println("✓ Aborted rebase")
+		}
+
+		// Restore stashed changes if any
+		if savedStashed == "true" {
+			fmt.Println("Restoring stashed changes...")
+			if err := gitClient.StashPop(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
+			} else {
+				fmt.Println("✓ Restored stashed changes")
+			}
+		}
+
+		// Return to original branch if we have one saved
+		if savedOriginalBranch != "" {
+			currentBranch, err := gitClient.GetCurrentBranch()
+			if err == nil && currentBranch != savedOriginalBranch {
+				fmt.Printf("Returning to %s...\n", savedOriginalBranch)
+				if err := gitClient.CheckoutBranch(savedOriginalBranch); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
+				} else {
+					fmt.Printf("✓ Returned to %s\n", savedOriginalBranch)
+				}
+			}
+		}
+
+		// Clean up sync state
+		_ = gitClient.UnsetConfig(configSyncStashed)
+		_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+
+		fmt.Println()
+		fmt.Println("✓ Sync aborted and state cleaned up")
+		return nil
+	}
 
 	if syncResume {
 		// Resuming after conflict resolution
@@ -119,6 +176,11 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			return fmt.Errorf("failed to get current branch: %w", err)
 		}
 
+		// Save original branch state for potential --abort
+		if err := gitClient.SetConfig(configSyncOriginalBranch, originalBranch); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save sync state: %v\n", err)
+		}
+
 		// Check if working tree is clean and stash if needed
 		clean, err := gitClient.IsWorkingTreeClean()
 		if err != nil {
@@ -132,11 +194,8 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			}
 			stashed = true
 
-			// Save state in case of rebase conflict
+			// Mark that we stashed changes
 			if err := gitClient.SetConfig(configSyncStashed, "true"); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to save sync state: %v\n", err)
-			}
-			if err := gitClient.SetConfig(configSyncOriginalBranch, originalBranch); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to save sync state: %v\n", err)
 			}
 
@@ -459,10 +518,12 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			fmt.Fprintf(os.Stderr, "    2. Run 'git add <resolved files>'\n")
 			fmt.Fprintf(os.Stderr, "    3. Run 'git rebase --continue'\n")
 			fmt.Fprintf(os.Stderr, "    4. Run 'stack sync --resume'\n")
+			fmt.Fprintf(os.Stderr, "\n  Or to abort the sync:\n")
+			fmt.Fprintf(os.Stderr, "    Run 'stack sync --abort'\n")
 			if stashed {
-				fmt.Fprintf(os.Stderr, "\n  Note: Your uncommitted changes have been stashed and will be restored when you run --resume\n")
+				fmt.Fprintf(os.Stderr, "\n  Note: Your uncommitted changes have been stashed and will be restored when you run --resume or --abort\n")
 			}
-			return err
+			return fmt.Errorf("failed to rebase: %w", errAlreadyPrinted)
 		}
 
 		// Push to origin - only if the branch already exists remotely
@@ -562,10 +623,11 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
 			fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
 		}
-		// Clean up sync state
-		_ = gitClient.UnsetConfig(configSyncStashed)
-		_ = gitClient.UnsetConfig(configSyncOriginalBranch)
 	}
+
+	// Clean up sync state (both stash flag and original branch)
+	_ = gitClient.UnsetConfig(configSyncStashed)
+	_ = gitClient.UnsetConfig(configSyncOriginalBranch)
 
 	fmt.Println()
 	fmt.Println("✓ Sync complete!")
