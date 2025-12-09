@@ -98,22 +98,37 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	hasSavedState := savedStashed == "true" || savedOriginalBranch != ""
 
 	if syncAbort {
-		// Aborting an interrupted sync
-		if !hasSavedState {
+		// Check if there's actually anything to abort
+		hasCherryPick := gitClient.IsCherryPickInProgress()
+		hasRebase := gitClient.IsRebaseInProgress()
+
+		if !hasSavedState && !hasCherryPick && !hasRebase {
 			return fmt.Errorf("no interrupted sync to abort\n\nUse 'stack sync' to start a new sync")
 		}
 
 		fmt.Println("Aborting sync and cleaning up...")
 		fmt.Println()
 
-		// Try to abort rebase if one is in progress
-		// It's okay if this fails - there might not be an active rebase
-		if err := gitClient.AbortRebase(); err != nil {
-			if git.Verbose {
-				fmt.Fprintf(os.Stderr, "Note: no rebase to abort (already resolved or not started)\n")
+		// Abort cherry-pick if one is in progress
+		if hasCherryPick {
+			if err := gitClient.AbortCherryPick(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to abort cherry-pick: %v\n", err)
+			} else {
+				fmt.Println("✓ Aborted cherry-pick")
 			}
-		} else {
-			fmt.Println("✓ Aborted rebase")
+		} else if git.Verbose {
+			fmt.Fprintf(os.Stderr, "Note: no cherry-pick in progress\n")
+		}
+
+		// Abort rebase if one is in progress
+		if hasRebase {
+			if err := gitClient.AbortRebase(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to abort rebase: %v\n", err)
+			} else {
+				fmt.Println("✓ Aborted rebase")
+			}
+		} else if git.Verbose {
+			fmt.Fprintf(os.Stderr, "Note: no rebase in progress\n")
 		}
 
 		// Restore stashed changes if any
@@ -509,7 +524,84 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 					fmt.Printf("  Using --onto to handle squash merge (excluding commits from %s)\n", oldParent)
 					return gitClient.RebaseOnto(rebaseTarget, oldParent, branch.Name)
 				}
-				return gitClient.Rebase(rebaseTarget)
+
+				// Get unique commits in this branch by comparing patch content (not just SHAs)
+				// This detects duplicate changes even if commits were rebased with different SHAs
+				uniqueCommits, err := gitClient.GetUniqueCommitsByPatch(rebaseTarget, branch.Name)
+				if err != nil {
+					// If we can't get unique commits, fall back to regular rebase
+					if git.Verbose {
+						fmt.Printf("  Could not get unique commits by patch, using regular rebase: %v\n", err)
+					}
+					return gitClient.Rebase(rebaseTarget)
+				}
+
+				// If no unique commits, branch is up-to-date
+				if len(uniqueCommits) == 0 {
+					if git.Verbose {
+						fmt.Printf("  Branch is up-to-date with %s (no unique patches)\n", rebaseTarget)
+					}
+					return nil
+				}
+
+				if git.Verbose {
+					fmt.Printf("  Found %d unique commit(s) by patch comparison\n", len(uniqueCommits))
+				}
+
+				// Get merge-base to understand the history
+				mergeBase, err := gitClient.GetMergeBase(branch.Name, rebaseTarget)
+				if err != nil {
+					// If we can't find merge-base, fall back to regular rebase
+					if git.Verbose {
+						fmt.Printf("  Could not find merge-base, using regular rebase: %v\n", err)
+					}
+					return gitClient.Rebase(rebaseTarget)
+				}
+
+				rebaseTargetHash, err := gitClient.GetCommitHash(rebaseTarget)
+				if err == nil && mergeBase == rebaseTargetHash {
+					// Parent hasn't changed since we branched, regular rebase is fine
+					return gitClient.Rebase(rebaseTarget)
+				}
+
+				// Count commits from merge-base to current branch (total commits in branch history)
+				allCommits, err := gitClient.GetUniqueCommits(mergeBase, branch.Name)
+				if err == nil && len(allCommits) > len(uniqueCommits)*2 {
+					// Branch has polluted history: many more commits than unique patches
+					// This usually means branch diverged from parent's history (e.g., based on old backup)
+					rebaseConflict = true
+					fmt.Fprintf(os.Stderr, "\n")
+					fmt.Fprintf(os.Stderr, "⚠ Detected polluted branch history:\n")
+					fmt.Fprintf(os.Stderr, "  - %d commits in branch history\n", len(allCommits))
+					fmt.Fprintf(os.Stderr, "  - Only %d unique patch(es)\n", len(uniqueCommits))
+					fmt.Fprintf(os.Stderr, "\n")
+					fmt.Fprintf(os.Stderr, "This usually means your branch diverged from the parent's history.\n")
+					fmt.Fprintf(os.Stderr, "Rebasing may result in many conflicts.\n")
+					fmt.Fprintf(os.Stderr, "\n")
+					fmt.Fprintf(os.Stderr, "Recommended: Rebuild branch manually with cherry-pick:\n")
+					fmt.Fprintf(os.Stderr, "  1. git checkout %s\n", branch.Parent)
+					fmt.Fprintf(os.Stderr, "  2. git checkout -b %s-clean\n", branch.Name)
+					for i, commit := range uniqueCommits {
+						if i < 5 { // Show first 5 commits
+							fmt.Fprintf(os.Stderr, "  3. git cherry-pick %s\n", commit[:8])
+						}
+					}
+					if len(uniqueCommits) > 5 {
+						fmt.Fprintf(os.Stderr, "     ... (%d more commits)\n", len(uniqueCommits)-5)
+					}
+					fmt.Fprintf(os.Stderr, "  4. git branch -D %s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "  5. git branch -m %s\n", branch.Name)
+					fmt.Fprintf(os.Stderr, "  6. git push --force-with-lease\n")
+					fmt.Fprintf(os.Stderr, "\n")
+					return fmt.Errorf("branch history is polluted, manual cleanup recommended")
+				}
+
+				// Use --onto to only replay commits unique to this branch
+				// This prevents conflicts from duplicate commits when parent was rebased
+				if git.Verbose {
+					fmt.Printf("  Using --onto with merge-base %s to handle rebased parent\n", mergeBase[:8])
+				}
+				return gitClient.RebaseOnto(rebaseTarget, mergeBase, branch.Name)
 			},
 		); err != nil {
 			rebaseConflict = true

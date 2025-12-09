@@ -300,6 +300,20 @@ func (c *gitClient) GetRemoteBranchesSet() map[string]bool {
 	return branches
 }
 
+// IsRebaseInProgress checks if a rebase is currently in progress
+func (c *gitClient) IsRebaseInProgress() bool {
+	// Git creates REBASE_HEAD during rebase (both regular and interactive)
+	_, err := c.runCmd("rev-parse", "--verify", "REBASE_HEAD")
+	return err == nil
+}
+
+// IsCherryPickInProgress checks if a cherry-pick is currently in progress
+func (c *gitClient) IsCherryPickInProgress() bool {
+	// Git creates .git/CHERRY_PICK_HEAD during cherry-pick
+	_, err := c.runCmd("rev-parse", "--verify", "CHERRY_PICK_HEAD")
+	return err == nil
+}
+
 // AbortRebase aborts an in-progress rebase
 func (c *gitClient) AbortRebase() error {
 	if DryRun {
@@ -307,6 +321,16 @@ func (c *gitClient) AbortRebase() error {
 		return nil
 	}
 	_, err := c.runCmd("rebase", "--abort")
+	return err
+}
+
+// AbortCherryPick aborts an in-progress cherry-pick
+func (c *gitClient) AbortCherryPick() error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git cherry-pick --abort\n")
+		return nil
+	}
+	_, err := c.runCmd("cherry-pick", "--abort")
 	return err
 }
 
@@ -329,6 +353,68 @@ func (c *gitClient) GetMergeBase(branch1, branch2 string) (string, error) {
 // GetCommitHash returns the commit hash of a ref
 func (c *gitClient) GetCommitHash(ref string) (string, error) {
 	return c.runCmd("rev-parse", ref)
+}
+
+// GetUniqueCommits returns the list of commits in branch that are not in base
+// Returns commit hashes in reverse chronological order (newest first)
+func (c *gitClient) GetUniqueCommits(base, branch string) ([]string, error) {
+	output, err := c.runCmd("rev-list", "--reverse", base+".."+branch)
+	if err != nil {
+		return nil, err
+	}
+	if output == "" {
+		return []string{}, nil
+	}
+	return strings.Split(output, "\n"), nil
+}
+
+// GetUniqueCommitsByPatch returns commits in branch that are not in base by comparing patch content
+// This uses git-cherry which compares patch IDs rather than commit SHAs, so it detects
+// duplicate changes even if commits were rebased (different SHAs but same content)
+// Returns commit hashes of truly unique patches
+func (c *gitClient) GetUniqueCommitsByPatch(base, branch string) ([]string, error) {
+	// git cherry outputs: "+ <sha>" for unique commits, "- <sha>" for duplicates
+	output, err := c.runCmd("cherry", base, branch)
+	if err != nil {
+		return nil, err
+	}
+	if output == "" {
+		return []string{}, nil
+	}
+
+	var uniqueCommits []string
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "+") {
+			// Extract SHA (format is "+ <sha>")
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				uniqueCommits = append(uniqueCommits, parts[1])
+			}
+		}
+	}
+	return uniqueCommits, nil
+}
+
+// CherryPick cherry-picks a commit onto the current branch
+func (c *gitClient) CherryPick(commit string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git cherry-pick %s\n", commit)
+		return nil
+	}
+	_, err := c.runCmd("cherry-pick", commit)
+	return err
+}
+
+// ResetHard resets the current branch to a ref
+func (c *gitClient) ResetHard(ref string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git reset --hard %s\n", ref)
+		return nil
+	}
+	_, err := c.runCmd("reset", "--hard", ref)
+	return err
 }
 
 // Stash stashes the current changes
