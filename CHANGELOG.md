@@ -1,3 +1,9 @@
+## [1.3.2](https://github.com/javoire/stackinator/compare/v1.3.1...v1.3.2) (2025-12-09)
+
+### Bug Fixes
+
+* duplicate error output and add --abort flag to sync ([08b0ee8](https://github.com/javoire/stackinator/commit/08b0ee8a109f40aa2b5c91e7f8af89d6b8dab6d5))
+
 ## [1.3.1](https://github.com/javoire/stackinator/compare/v1.3.0...v1.3.1) (2025-12-08)
 
 ### Bug Fixes
