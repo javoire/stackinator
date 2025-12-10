@@ -640,6 +640,10 @@ func TestRunSyncAbort(t *testing.T) {
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
 
+		// No rebase or cherry-pick in progress
+		mockGit.On("IsCherryPickInProgress").Return(false)
+		mockGit.On("IsRebaseInProgress").Return(false)
+
 		// Set abort flag
 		syncAbort = true
 		defer func() { syncAbort = false }()
@@ -657,6 +661,10 @@ func TestRunSyncAbort(t *testing.T) {
 		// Saved state exists with stash
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("true")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
+
+		// Rebase in progress (to trigger AbortRebase)
+		mockGit.On("IsCherryPickInProgress").Return(false)
+		mockGit.On("IsRebaseInProgress").Return(true)
 
 		// Set abort flag
 		syncAbort = true
@@ -688,6 +696,10 @@ func TestRunSyncAbort(t *testing.T) {
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
 
+		// Rebase in progress (to trigger AbortRebase)
+		mockGit.On("IsCherryPickInProgress").Return(false)
+		mockGit.On("IsRebaseInProgress").Return(true)
+
 		// Set abort flag
 		syncAbort = true
 		defer func() { syncAbort = false }()
@@ -717,11 +729,15 @@ func TestRunSyncAbort(t *testing.T) {
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
 
+		// Rebase in progress (to trigger AbortRebase)
+		mockGit.On("IsCherryPickInProgress").Return(false)
+		mockGit.On("IsRebaseInProgress").Return(true)
+
 		// Set abort flag
 		syncAbort = true
 		defer func() { syncAbort = false }()
 
-		// Abort rebase fails (no rebase in progress)
+		// Abort rebase fails (simulated failure)
 		mockGit.On("AbortRebase").Return(fmt.Errorf("no rebase in progress"))
 		// Return to original branch
 		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
