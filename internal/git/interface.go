@@ -23,10 +23,17 @@ type GitClient interface {
 	BranchExists(name string) bool
 	RemoteBranchExists(name string) bool
 	GetRemoteBranchesSet() map[string]bool
+	IsRebaseInProgress() bool
+	IsCherryPickInProgress() bool
 	AbortRebase() error
+	AbortCherryPick() error
 	ResetToRemote(branch string) error
 	GetMergeBase(branch1, branch2 string) (string, error)
 	GetCommitHash(ref string) (string, error)
+	GetUniqueCommits(base, branch string) ([]string, error)
+	GetUniqueCommitsByPatch(base, branch string) ([]string, error)
+	CherryPick(commit string) error
+	ResetHard(ref string) error
 	Stash(message string) error
 	StashPop() error
 	GetDefaultBranch() string
