@@ -419,7 +419,7 @@ func TestFilterMergedBranchesForSync(t *testing.T) {
 	// Test the filterMergedBranchesForSync function
 	// This is a simple unit test for the tree filtering logic
 	prCache := map[string]*github.PRInfo{
-		"merged-leaf": testutil.NewPRInfo(1, "MERGED", "main", "Merged Leaf", "url"),
+		"merged-leaf":   testutil.NewPRInfo(1, "MERGED", "main", "Merged Leaf", "url"),
 		"merged-parent": testutil.NewPRInfo(2, "MERGED", "main", "Merged Parent", "url"),
 	}
 
