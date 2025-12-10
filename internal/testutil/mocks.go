@@ -115,7 +115,22 @@ func (m *MockGitClient) GetRemoteBranchesSet() map[string]bool {
 	return args.Get(0).(map[string]bool)
 }
 
+func (m *MockGitClient) IsRebaseInProgress() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *MockGitClient) IsCherryPickInProgress() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
 func (m *MockGitClient) AbortRebase() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockGitClient) AbortCherryPick() error {
 	args := m.Called()
 	return args.Error(0)
 }
@@ -133,6 +148,32 @@ func (m *MockGitClient) GetMergeBase(branch1, branch2 string) (string, error) {
 func (m *MockGitClient) GetCommitHash(ref string) (string, error) {
 	args := m.Called(ref)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockGitClient) GetUniqueCommits(base, branch string) ([]string, error) {
+	args := m.Called(base, branch)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockGitClient) GetUniqueCommitsByPatch(base, branch string) ([]string, error) {
+	args := m.Called(base, branch)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockGitClient) CherryPick(commit string) error {
+	args := m.Called(commit)
+	return args.Error(0)
+}
+
+func (m *MockGitClient) ResetHard(ref string) error {
+	args := m.Called(ref)
+	return args.Error(0)
 }
 
 func (m *MockGitClient) Stash(message string) error {
