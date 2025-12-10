@@ -1,3 +1,13 @@
+## [1.4.0](https://github.com/javoire/stackinator/compare/v1.3.2...v1.4.0) (2025-12-10)
+
+### Features
+
+* detect polluted branch history and guide manual cleanup ([dac6564](https://github.com/javoire/stackinator/commit/dac656480e81f07f02f5f5f53ffd7a2ef983387e))
+
+### Bug Fixes
+
+* add missing mock expectations for IsCherryPickInProgress and IsRebaseInProgress ([e1f20af](https://github.com/javoire/stackinator/commit/e1f20afdfec4babd835cd3152bdf8002129ddaa0))
+
 ## [1.3.2](https://github.com/javoire/stackinator/compare/v1.3.1...v1.3.2) (2025-12-09)
 
 ### Bug Fixes
