@@ -1,3 +1,9 @@
+## [1.4.1](https://github.com/javoire/stackinator/compare/v1.4.0...v1.4.1) (2025-12-15)
+
+### Bug Fixes
+
+* add checkmark to 'PR base already correct' message ([7704a19](https://github.com/javoire/stackinator/commit/7704a199724cd13885e2ddf7ba0b3daa46e9d22b))
+
 ## [1.4.0](https://github.com/javoire/stackinator/compare/v1.3.2...v1.4.0) (2025-12-10)
 
 ### Features
