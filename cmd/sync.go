@@ -589,7 +589,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 					fmt.Printf("  ✓ PR #%d updated\n", pr.Number)
 				}
 			} else {
-				fmt.Printf("  PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
+				fmt.Printf("  ✓ PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
 			}
 		} else {
 			fmt.Printf("  No PR found (create one with 'gh pr create')\n")
