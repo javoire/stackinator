@@ -510,6 +510,17 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if !stackBranchSet[branch.Parent] {
 			// Parent is not a stack branch, so it's a base branch - use origin/<parent>
 			rebaseTarget = "origin/" + branch.Parent
+
+			// Explicitly fetch the base branch to ensure tracking ref is up to date
+			// This is needed because 'git fetch origin' may not always update tracking refs
+			// reliably (e.g., repos with limited refspecs or certain git configurations)
+			if err := gitClient.FetchBranch(branch.Parent); err != nil {
+				// Non-fatal: continue with potentially stale ref, rebase will still work
+				// but might not include latest changes from the base branch
+				if git.Verbose {
+					fmt.Printf("  Note: could not fetch %s: %v\n", branch.Parent, err)
+				}
+			}
 		}
 
 		// Rebase onto parent
