@@ -678,10 +678,10 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 				if err := githubClient.UpdatePRBase(pr.Number, branch.Parent); err != nil {
 					fmt.Fprintf(os.Stderr, "  Warning: failed to update PR base: %v\n", err)
 				} else {
-					fmt.Printf("  ✓ PR #%d updated\n", pr.Number)
+					fmt.Printf("✓   PR #%d updated\n", pr.Number)
 				}
 			} else {
-				fmt.Printf("  ✓ PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
+				fmt.Printf("✓   PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
 			}
 		} else {
 			fmt.Printf("  No PR found (create one with 'gh pr create')\n")
