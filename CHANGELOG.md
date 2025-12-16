@@ -1,3 +1,9 @@
+## [1.4.2](https://github.com/javoire/stackinator/compare/v1.4.1...v1.4.2) (2025-12-16)
+
+### Bug Fixes
+
+* consistent formatting for sync output ([6bd05a9](https://github.com/javoire/stackinator/commit/6bd05a938953e7e4e0e8cac210100dd1d57172ce))
+
 ## [1.4.1](https://github.com/javoire/stackinator/compare/v1.4.0...v1.4.1) (2025-12-15)
 
 ### Bug Fixes
