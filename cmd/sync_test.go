@@ -55,11 +55,7 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		// Patch-based unique commit detection
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
-		// Falls through to regular rebase since merge-base == parent
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
@@ -67,12 +63,7 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
-		// Patch-based unique commit detection
-		mockGit.On("GetUniqueCommitsByPatch", "feature-a", "feature-b").Return([]string{"def456"}, nil)
-		mockGit.On("GetMergeBase", "feature-b", "feature-a").Return("abc123", nil)
-		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
-		// Falls through to regular rebase since merge-base == parent
-		mockGit.On("Rebase", "feature-a").Return(nil)
+		mockGit.On("Rebase", "feature-a").Return(nil) // Parent is stack branch, no FetchBranch needed
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
 		// Return to original branch
@@ -207,9 +198,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
@@ -218,10 +207,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "feature-a", "feature-b").Return([]string{"def456"}, nil)
-		mockGit.On("GetMergeBase", "feature-b", "feature-a").Return("abc123", nil)
-		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
-		mockGit.On("Rebase", "feature-a").Return(nil)
+		mockGit.On("Rebase", "feature-a").Return(nil) // Parent is stack branch, no FetchBranch needed
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
 
@@ -287,9 +273,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
@@ -347,9 +331,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		// Rebase fails
 		mockGit.On("Rebase", "origin/main").Return(fmt.Errorf("rebase conflict"))
 		// Note: StashPop is NOT called because rebaseConflict=true
@@ -400,9 +382,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		// Rebase fails - stash should NOT be popped (preserved for --resume)
 		mockGit.On("Rebase", "origin/main").Return(fmt.Errorf("rebase conflict"))
 		// Note: StashPop is NOT called because rebaseConflict=true
@@ -545,9 +525,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
@@ -607,9 +585,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
-		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
-		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("Rebase", "origin/main").Return(nil)
 		mockGit.On("FetchBranch", "feature-a").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
