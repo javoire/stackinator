@@ -178,7 +178,22 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if hasSavedState {
 			fmt.Fprintf(os.Stderr, "Warning: found state from a previous interrupted sync\n")
 			fmt.Fprintf(os.Stderr, "If you resolved rebase conflicts, run 'stack sync --resume'\n")
-			fmt.Fprintf(os.Stderr, "Otherwise, cleaning up stale state and starting fresh...\n\n")
+			fmt.Fprintf(os.Stderr, "\nStart fresh? [y/N] ")
+
+			reader := bufio.NewReader(os.Stdin)
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("failed to read input: %w", err)
+			}
+
+			input = strings.TrimSpace(strings.ToLower(input))
+			if input != "y" && input != "yes" {
+				fmt.Println("Aborted. Use 'stack sync --resume' or 'stack sync --abort' to handle the interrupted sync.")
+				return nil
+			}
+
+			fmt.Println("Cleaning up stale state and starting fresh...")
+			fmt.Println()
 			// Clean up stale state
 			_ = gitClient.UnsetConfig(configSyncStashed)
 			_ = gitClient.UnsetConfig(configSyncOriginalBranch)
