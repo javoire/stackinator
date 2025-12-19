@@ -1,3 +1,18 @@
+## [1.5.0](https://github.com/javoire/stackinator/compare/v1.4.2...v1.5.0) (2025-12-19)
+
+### Features
+
+* add injectable stdinReader for testable prompts ([1cd5ef5](https://github.com/javoire/stackinator/commit/1cd5ef5b811e88cbdda22ebc0e80f4cc9950a822))
+* prompt before cleaning up stale sync state ([39141df](https://github.com/javoire/stackinator/commit/39141dff27a482361e56f5c7418b4d7bc6d8913c))
+
+### Bug Fixes
+
+* add FetchBranch mock expectations for base branch fetch ([e719028](https://github.com/javoire/stackinator/commit/e7190284897e8a63eacefe521bf02c78577bba79))
+* add missing FetchBranch mock for merged parent test ([d057552](https://github.com/javoire/stackinator/commit/d0575524f63931537d5d5ea2fe65b34fcb52e3fb))
+* add missing mock expectations for unique commit detection ([83f7e9a](https://github.com/javoire/stackinator/commit/83f7e9ae58541a839ef95be22bba37957c3a3dee))
+* explicitly fetch base branch before rebase in sync ([99a1270](https://github.com/javoire/stackinator/commit/99a1270ddac345516e132d2d7326f491a38e2460))
+* remove test for old auto-cleanup behavior ([2cb6ee1](https://github.com/javoire/stackinator/commit/2cb6ee1787d5a19a82acc1415527124e27385f62))
+
 ## [1.4.2](https://github.com/javoire/stackinator/compare/v1.4.1...v1.4.2) (2025-12-16)
 
 ### Bug Fixes
