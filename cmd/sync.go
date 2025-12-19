@@ -603,8 +603,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 					if syncCherryPick {
 						// Automated cherry-pick rebuild with backup
-						backupBranch := branch.Name + "-backup"
 						tempBranch := branch.Name + "-rebuild"
+
+						// Find available backup branch name
+						backupBranch := branch.Name + "-backup"
+						for i := 2; gitClient.BranchExists(backupBranch); i++ {
+							backupBranch = fmt.Sprintf("%s-backup-%d", branch.Name, i)
+						}
 
 						fmt.Printf("\n")
 						fmt.Printf("⚠ Detected polluted branch history (%d commits, %d unique patches)\n", len(allCommits), len(uniqueCommits))
