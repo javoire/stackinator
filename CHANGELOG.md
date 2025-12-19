@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/javoire/stackinator/compare/v1.5.0...v1.6.0) (2025-12-19)
+
+### Features
+
+* add --cherry-pick flag to auto-rebuild polluted branches ([7ff1867](https://github.com/javoire/stackinator/commit/7ff1867e63487d04f790cacbf878d40326ecde2d))
+
 ## [1.5.0](https://github.com/javoire/stackinator/compare/v1.4.2...v1.5.0) (2025-12-19)
 
 ### Features
