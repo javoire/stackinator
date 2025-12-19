@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/javoire/stackinator/internal/github"
@@ -55,6 +57,7 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		// Patch-based unique commit detection
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
@@ -141,6 +144,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("RebaseOnto", "origin/main", "feature-a", "feature-b").Return(nil)
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
@@ -207,6 +211,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -287,6 +292,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -347,6 +353,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -400,6 +407,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -545,6 +553,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -569,14 +578,18 @@ func TestRunSyncResume(t *testing.T) {
 		mockGH.AssertExpectations(t)
 	})
 
-	t.Run("orphaned state is cleaned up on fresh sync", func(t *testing.T) {
+	t.Run("stale state cleaned up when user confirms", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
+
+		// Inject "y" input for the prompt
+		stdinReader = strings.NewReader("y\n")
+		defer func() { stdinReader = os.Stdin }()
 
 		// Orphaned state exists but --resume not passed
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("true")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("old-branch")
-		// Clean up orphaned state
+		// Clean up orphaned state (user confirmed)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
@@ -607,6 +620,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -622,6 +636,28 @@ func TestRunSyncResume(t *testing.T) {
 
 		err := runSync(mockGit, mockGH)
 
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+
+	t.Run("sync aborted when user declines stale state cleanup", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Inject "n" input for the prompt (user declines)
+		stdinReader = strings.NewReader("n\n")
+		defer func() { stdinReader = os.Stdin }()
+
+		// Orphaned state exists but --resume not passed
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("true")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("old-branch")
+
+		// User declined, so sync should abort without calling any other methods
+
+		err := runSync(mockGit, mockGH)
+
+		// Should return nil (not an error) since user chose to abort
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
 		mockGH.AssertExpectations(t)

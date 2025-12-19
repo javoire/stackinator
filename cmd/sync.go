@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -22,6 +23,8 @@ var (
 	syncForce  bool
 	syncResume bool
 	syncAbort  bool
+	// stdinReader allows tests to inject mock input for prompts
+	stdinReader io.Reader = os.Stdin
 )
 
 // Git config keys for sync state persistence
@@ -178,7 +181,22 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if hasSavedState {
 			fmt.Fprintf(os.Stderr, "Warning: found state from a previous interrupted sync\n")
 			fmt.Fprintf(os.Stderr, "If you resolved rebase conflicts, run 'stack sync --resume'\n")
-			fmt.Fprintf(os.Stderr, "Otherwise, cleaning up stale state and starting fresh...\n\n")
+			fmt.Fprintf(os.Stderr, "\nStart fresh? [y/N] ")
+
+			reader := bufio.NewReader(stdinReader)
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("failed to read input: %w", err)
+			}
+
+			input = strings.TrimSpace(strings.ToLower(input))
+			if input != "y" && input != "yes" {
+				fmt.Println("Aborted. Use 'stack sync --resume' or 'stack sync --abort' to handle the interrupted sync.")
+				return nil
+			}
+
+			fmt.Println("Cleaning up stale state and starting fresh...")
+			fmt.Println()
 			// Clean up stale state
 			_ = gitClient.UnsetConfig(configSyncStashed)
 			_ = gitClient.UnsetConfig(configSyncOriginalBranch)
@@ -245,7 +263,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		fmt.Printf("Branch '%s' is not in a stack.\n", originalBranch)
 		fmt.Printf("Add it with parent '%s'? [Y/n] ", baseBranch)
 
-		reader := bufio.NewReader(os.Stdin)
+		reader := bufio.NewReader(stdinReader)
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return fmt.Errorf("failed to read input: %w", err)
@@ -510,6 +528,17 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if !stackBranchSet[branch.Parent] {
 			// Parent is not a stack branch, so it's a base branch - use origin/<parent>
 			rebaseTarget = "origin/" + branch.Parent
+
+			// Explicitly fetch the base branch to ensure tracking ref is up to date
+			// This is needed because 'git fetch origin' may not always update tracking refs
+			// reliably (e.g., repos with limited refspecs or certain git configurations)
+			if err := gitClient.FetchBranch(branch.Parent); err != nil {
+				// Non-fatal: continue with potentially stale ref, rebase will still work
+				// but might not include latest changes from the base branch
+				if git.Verbose {
+					fmt.Printf("  Note: could not fetch %s: %v\n", branch.Parent, err)
+				}
+			}
 		}
 
 		// Rebase onto parent
