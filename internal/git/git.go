@@ -134,8 +134,18 @@ func (c *gitClient) UnsetConfig(key string) error {
 	return err
 }
 
-// CreateBranch creates a new branch from the specified base and checks it out
+// CreateBranch creates a new branch from a ref without checking it out
 func (c *gitClient) CreateBranch(name, from string) error {
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git branch %s %s\n", name, from)
+		return nil
+	}
+	_, err := c.runCmd("branch", name, from)
+	return err
+}
+
+// CreateBranchAndCheckout creates a new branch from the specified base and checks it out
+func (c *gitClient) CreateBranchAndCheckout(name, from string) error {
 	if DryRun {
 		fmt.Printf("  [DRY RUN] git checkout -b %s %s\n", name, from)
 		return nil

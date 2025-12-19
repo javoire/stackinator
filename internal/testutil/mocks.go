@@ -50,6 +50,11 @@ func (m *MockGitClient) CreateBranch(name, from string) error {
 	return args.Error(0)
 }
 
+func (m *MockGitClient) CreateBranchAndCheckout(name, from string) error {
+	args := m.Called(name, from)
+	return args.Error(0)
+}
+
 func (m *MockGitClient) CheckoutBranch(name string) error {
 	args := m.Called(name)
 	return args.Error(0)
