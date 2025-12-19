@@ -662,6 +662,12 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 							return fmt.Errorf("failed to rename temp branch: %w", err)
 						}
 
+						// Restore stackparent config (git branch -D deletes the branch's config section)
+						configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
+						if err := gitClient.SetConfig(configKey, branch.Parent); err != nil {
+							return fmt.Errorf("failed to restore stackparent config: %w", err)
+						}
+
 						fmt.Printf("✓ Rebuilt %s (backup saved as %s)\n", branch.Name, backupBranch)
 						fmt.Printf("  To delete backup later: git branch -D %s\n", backupBranch)
 
