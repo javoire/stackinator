@@ -10,6 +10,7 @@ type GitClient interface {
 	SetConfig(key, value string) error
 	UnsetConfig(key string) error
 	CreateBranch(name, from string) error
+	CreateBranchAndCheckout(name, from string) error
 	CheckoutBranch(name string) error
 	RenameBranch(oldName, newName string) error
 	Rebase(onto string) error

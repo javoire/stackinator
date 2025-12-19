@@ -20,9 +20,10 @@ import (
 var errAlreadyPrinted = errors.New("")
 
 var (
-	syncForce  bool
-	syncResume bool
-	syncAbort  bool
+	syncForce      bool
+	syncResume     bool
+	syncAbort      bool
+	syncCherryPick bool
 	// stdinReader allows tests to inject mock input for prompts
 	stdinReader io.Reader = os.Stdin
 )
@@ -87,6 +88,7 @@ func init() {
 	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Use --force instead of --force-with-lease for push (bypasses safety checks)")
 	syncCmd.Flags().BoolVarP(&syncResume, "resume", "r", false, "Resume a sync after resolving rebase conflicts")
 	syncCmd.Flags().BoolVarP(&syncAbort, "abort", "a", false, "Abort an interrupted sync and clean up state")
+	syncCmd.Flags().BoolVar(&syncCherryPick, "cherry-pick", false, "Rebuild polluted branches by cherry-picking unique commits (creates backup)")
 }
 
 func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
@@ -598,6 +600,71 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 				if err == nil && len(allCommits) > len(uniqueCommits)*2 {
 					// Branch has polluted history: many more commits than unique patches
 					// This usually means branch diverged from parent's history (e.g., based on old backup)
+
+					if syncCherryPick {
+						// Automated cherry-pick rebuild with backup
+						backupBranch := branch.Name + "-backup"
+						tempBranch := branch.Name + "-rebuild"
+
+						fmt.Printf("\n")
+						fmt.Printf("⚠ Detected polluted branch history (%d commits, %d unique patches)\n", len(allCommits), len(uniqueCommits))
+						fmt.Printf("  Creating backup: %s\n", backupBranch)
+
+						// Create backup branch from current branch (without checkout)
+						if err := gitClient.CreateBranch(backupBranch, branch.Name); err != nil {
+							return fmt.Errorf("failed to create backup branch: %w", err)
+						}
+
+						fmt.Printf("  Rebuilding with %d unique commit(s)...\n", len(uniqueCommits))
+
+						// Checkout parent branch
+						if err := gitClient.CheckoutBranch(rebaseTarget); err != nil {
+							return fmt.Errorf("failed to checkout parent %s: %w", rebaseTarget, err)
+						}
+
+						// Create temp branch from parent
+						if err := gitClient.CreateBranchAndCheckout(tempBranch, rebaseTarget); err != nil {
+							return fmt.Errorf("failed to create temp branch: %w", err)
+						}
+
+						// Cherry-pick each unique commit
+						for _, commit := range uniqueCommits {
+							if git.Verbose {
+								fmt.Printf("    Cherry-picking %s\n", commit[:8])
+							}
+							if err := gitClient.CherryPick(commit); err != nil {
+								// Cherry-pick conflict - let user resolve
+								rebaseConflict = true
+								fmt.Fprintf(os.Stderr, "\n  Cherry-pick conflict on %s. To continue:\n", commit[:8])
+								fmt.Fprintf(os.Stderr, "    1. Resolve the conflicts\n")
+								fmt.Fprintf(os.Stderr, "    2. Run 'git add <resolved files>'\n")
+								fmt.Fprintf(os.Stderr, "    3. Run 'git cherry-pick --continue'\n")
+								fmt.Fprintf(os.Stderr, "    4. Complete remaining cherry-picks manually\n")
+								fmt.Fprintf(os.Stderr, "    5. Run 'git branch -D %s && git branch -m %s'\n", branch.Name, branch.Name)
+								fmt.Fprintf(os.Stderr, "    6. Run 'stack sync --resume'\n")
+								fmt.Fprintf(os.Stderr, "\n  Backup saved as: %s\n", backupBranch)
+								return fmt.Errorf("cherry-pick conflict: %w", err)
+							}
+						}
+
+						// Delete original branch and rename temp to original
+						if err := gitClient.DeleteBranchForce(branch.Name); err != nil {
+							return fmt.Errorf("failed to delete original branch: %w", err)
+						}
+
+						// We're on tempBranch, rename it to the original branch name
+						if err := gitClient.RenameBranch(tempBranch, branch.Name); err != nil {
+							return fmt.Errorf("failed to rename temp branch: %w", err)
+						}
+
+						fmt.Printf("✓ Rebuilt %s (backup saved as %s)\n", branch.Name, backupBranch)
+						fmt.Printf("  To delete backup later: git branch -D %s\n", backupBranch)
+
+						// Branch is now clean - no need to rebase, just return nil
+						return nil
+					}
+
+					// No --cherry-pick flag: show warning and suggest the flag
 					rebaseConflict = true
 					fmt.Fprintf(os.Stderr, "\n")
 					fmt.Fprintf(os.Stderr, "⚠ Detected polluted branch history:\n")
@@ -607,7 +674,10 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 					fmt.Fprintf(os.Stderr, "This usually means your branch diverged from the parent's history.\n")
 					fmt.Fprintf(os.Stderr, "Rebasing may result in many conflicts.\n")
 					fmt.Fprintf(os.Stderr, "\n")
-					fmt.Fprintf(os.Stderr, "Recommended: Rebuild branch manually with cherry-pick:\n")
+					fmt.Fprintf(os.Stderr, "Recommended: Run 'stack sync --cherry-pick' to auto-rebuild\n")
+					fmt.Fprintf(os.Stderr, "  (Creates backup branch before rebuilding)\n")
+					fmt.Fprintf(os.Stderr, "\n")
+					fmt.Fprintf(os.Stderr, "Or rebuild manually:\n")
 					fmt.Fprintf(os.Stderr, "  1. git checkout %s\n", branch.Parent)
 					fmt.Fprintf(os.Stderr, "  2. git checkout -b %s-clean\n", branch.Name)
 					for i, commit := range uniqueCommits {

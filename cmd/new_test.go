@@ -29,7 +29,7 @@ func TestRunNew(t *testing.T) {
 				// Parent exists
 				mockGit.On("BranchExists", "feature-a").Return(true)
 				// Create branch
-				mockGit.On("CreateBranch", "feature-b", "feature-a").Return(nil)
+				mockGit.On("CreateBranchAndCheckout", "feature-b", "feature-a").Return(nil)
 				// Set config
 				mockGit.On("SetConfig", "branch.feature-b.stackparent", "feature-a").Return(nil)
 			},
@@ -47,7 +47,7 @@ func TestRunNew(t *testing.T) {
 				// Check if current branch has parent
 				mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
 				// Create branch from current
-				mockGit.On("CreateBranch", "feature-b", "feature-a").Return(nil)
+				mockGit.On("CreateBranchAndCheckout", "feature-b", "feature-a").Return(nil)
 				// Set config
 				mockGit.On("SetConfig", "branch.feature-b.stackparent", "feature-a").Return(nil)
 			},
@@ -148,7 +148,7 @@ func TestRunNewSetConfig(t *testing.T) {
 	// Parent exists
 	mockGit.On("BranchExists", "parent-branch").Return(true)
 	// Create branch
-	mockGit.On("CreateBranch", "new-branch", "parent-branch").Return(nil)
+	mockGit.On("CreateBranchAndCheckout", "new-branch", "parent-branch").Return(nil)
 	// Verify SetConfig is called with correct parameters
 	mockGit.On("SetConfig", "branch.new-branch.stackparent", "parent-branch").Return(nil)
 
@@ -173,7 +173,7 @@ func TestRunNewFromCurrentBranch(t *testing.T) {
 	// Current branch has a parent (it's in a stack)
 	mockGit.On("GetConfig", "branch.current-branch.stackparent").Return("main")
 	// Create branch from current
-	mockGit.On("CreateBranch", "new-branch", "current-branch").Return(nil)
+	mockGit.On("CreateBranchAndCheckout", "new-branch", "current-branch").Return(nil)
 	// Set config
 	mockGit.On("SetConfig", "branch.new-branch.stackparent", "current-branch").Return(nil)
 
@@ -189,12 +189,12 @@ func TestRunNewErrorHandling(t *testing.T) {
 	testutil.SetupTest()
 	defer testutil.TeardownTest()
 
-	t.Run("error on CreateBranch failure", func(t *testing.T) {
+	t.Run("error on CreateBranchAndCheckout failure", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 
 		mockGit.On("BranchExists", "new-branch").Return(false)
 		mockGit.On("BranchExists", "parent").Return(true)
-		mockGit.On("CreateBranch", "new-branch", "parent").Return(fmt.Errorf("git error"))
+		mockGit.On("CreateBranchAndCheckout", "new-branch", "parent").Return(fmt.Errorf("git error"))
 
 		err := runNew(mockGit, "new-branch", "parent")
 
@@ -209,7 +209,7 @@ func TestRunNewErrorHandling(t *testing.T) {
 
 		mockGit.On("BranchExists", "new-branch").Return(false)
 		mockGit.On("BranchExists", "parent").Return(true)
-		mockGit.On("CreateBranch", "new-branch", "parent").Return(nil)
+		mockGit.On("CreateBranchAndCheckout", "new-branch", "parent").Return(nil)
 		mockGit.On("SetConfig", "branch.new-branch.stackparent", "parent").Return(fmt.Errorf("config error"))
 
 		err := runNew(mockGit, "new-branch", "parent")
@@ -220,4 +220,3 @@ func TestRunNewErrorHandling(t *testing.T) {
 		mockGit.AssertExpectations(t)
 	})
 }
-

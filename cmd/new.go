@@ -80,7 +80,7 @@ func runNew(gitClient git.GitClient, branchName string, explicitParent string) e
 	fmt.Printf("Creating new branch %s from %s\n", branchName, parent)
 
 	// Create the new branch
-	if err := gitClient.CreateBranch(branchName, parent); err != nil {
+	if err := gitClient.CreateBranchAndCheckout(branchName, parent); err != nil {
 		return fmt.Errorf("failed to create branch: %w", err)
 	}
 
