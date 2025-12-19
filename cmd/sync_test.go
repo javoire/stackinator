@@ -142,6 +142,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
+		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("RebaseOnto", "origin/main", "feature-a", "feature-b").Return(nil)
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
