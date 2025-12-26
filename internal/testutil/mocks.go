@@ -15,6 +15,11 @@ func (m *MockGitClient) GetRepoRoot() (string, error) {
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockGitClient) GetRepoName() (string, error) {
+	args := m.Called()
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockGitClient) GetCurrentBranch() (string, error) {
 	args := m.Called()
 	return args.String(0), args.Error(1)
