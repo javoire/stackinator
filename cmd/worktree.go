@@ -17,8 +17,8 @@ var worktreePrune bool
 
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree <branch-name> [base-branch]",
-	Short: "Create a worktree in ~/stack/worktrees directory",
-	Long: `Create a git worktree in the ~/stack/worktrees directory for the specified branch.
+	Short: "Create a worktree in ~/.stack/worktrees directory",
+	Long: `Create a git worktree in the ~/.stack/worktrees directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
@@ -84,7 +84,7 @@ func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, bran
 	}
 
 	// Worktree path
-	worktreePath := filepath.Join(homeDir, ".stack-worktrees", branchName)
+	worktreePath := filepath.Join(homeDir, ".stack", "worktrees", branchName)
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
@@ -198,11 +198,11 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	worktreesDir := filepath.Join(homeDir, ".stack-worktrees")
+	worktreesDir := filepath.Join(homeDir, ".stack", "worktrees")
 
-	// Check if ~/.stack-worktrees directory exists
+	// Check if ~/.stack/worktrees directory exists
 	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
-		fmt.Println("No ~/.stack-worktrees directory found.")
+		fmt.Println("No ~/.stack/worktrees directory found.")
 		return nil
 	}
 
@@ -212,7 +212,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return fmt.Errorf("failed to list worktrees: %w", err)
 	}
 
-	// Filter to only worktrees in ~/.stack-worktrees directory
+	// Filter to only worktrees in ~/.stack/worktrees directory
 	var worktreesToCheck []struct {
 		path   string
 		branch string
@@ -227,7 +227,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	}
 
 	if len(worktreesToCheck) == 0 {
-		fmt.Println("No worktrees found in ~/.stack-worktrees directory.")
+		fmt.Println("No worktrees found in ~/.stack/worktrees directory.")
 		return nil
 	}
 
