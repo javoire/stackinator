@@ -16,8 +16,8 @@ var worktreePrune bool
 
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree <branch-name> [base-branch]",
-	Short: "Create a worktree in ~/.stack/worktrees directory",
-	Long: `Create a git worktree in the ~/.stack/worktrees directory for the specified branch.
+	Short: "Create a worktree in ~/.stack/worktrees/<reponame> directory",
+	Long: `Create a git worktree in the ~/.stack/worktrees/<reponame> directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
@@ -81,8 +81,14 @@ func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, bran
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Worktree path
-	worktreePath := filepath.Join(homeDir, ".stack", "worktrees", branchName)
+	// Get repository name
+	repoName, err := gitClient.GetRepoName()
+	if err != nil {
+		return fmt.Errorf("failed to get repo name: %w", err)
+	}
+
+	// Worktree path: ~/.stack/worktrees/<reponame>/<branchname>
+	worktreePath := filepath.Join(homeDir, ".stack", "worktrees", repoName, branchName)
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
@@ -196,11 +202,17 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	worktreesDir := filepath.Join(homeDir, ".stack", "worktrees")
+	// Get repository name
+	repoName, err := gitClient.GetRepoName()
+	if err != nil {
+		return fmt.Errorf("failed to get repo name: %w", err)
+	}
 
-	// Check if ~/.stack/worktrees directory exists
+	worktreesDir := filepath.Join(homeDir, ".stack", "worktrees", repoName)
+
+	// Check if ~/.stack/worktrees/<reponame> directory exists
 	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
-		fmt.Println("No ~/.stack/worktrees directory found.")
+		fmt.Printf("No ~/.stack/worktrees/%s directory found.\n", repoName)
 		return nil
 	}
 
@@ -210,7 +222,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return fmt.Errorf("failed to list worktrees: %w", err)
 	}
 
-	// Filter to only worktrees in ~/.stack/worktrees directory
+	// Filter to only worktrees in ~/.stack/worktrees/<reponame> directory
 	var worktreesToCheck []struct {
 		path   string
 		branch string
@@ -225,7 +237,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	}
 
 	if len(worktreesToCheck) == 0 {
-		fmt.Println("No worktrees found in ~/.stack/worktrees directory.")
+		fmt.Printf("No worktrees found in ~/.stack/worktrees/%s directory.\n", repoName)
 		return nil
 	}
 
