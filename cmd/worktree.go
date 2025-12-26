@@ -16,8 +16,8 @@ var worktreePrune bool
 
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree <branch-name> [base-branch]",
-	Short: "Create a worktree in ~/.stack-worktrees/ directory",
-	Long: `Create a git worktree in the ~/.stack-worktrees/ directory for the specified branch.
+	Short: "Create a worktree in ~/stack/worktrees directory",
+	Long: `Create a git worktree in the ~/stack/worktrees directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
