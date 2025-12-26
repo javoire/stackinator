@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,8 +16,8 @@ var worktreePrune bool
 
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree <branch-name> [base-branch]",
-	Short: "Create a worktree in .worktrees/ directory",
-	Long: `Create a git worktree in the .worktrees/ directory for the specified branch.
+	Short: "Create a worktree in ~/.stack-worktrees/ directory",
+	Long: `Create a git worktree in the ~/.stack-worktrees/ directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
@@ -76,19 +75,14 @@ func init() {
 }
 
 func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, branchName, baseBranch string) error {
-	// Get repo root
-	repoRoot, err := gitClient.GetRepoRoot()
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get repo root: %w", err)
-	}
-
-	// Ensure .worktrees is in .gitignore
-	if err := ensureWorktreesIgnored(repoRoot); err != nil {
-		return fmt.Errorf("failed to update .gitignore: %w", err)
+		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
 	// Worktree path
-	worktreePath := filepath.Join(repoRoot, ".worktrees", branchName)
+	worktreePath := filepath.Join(homeDir, ".stack-worktrees", branchName)
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
@@ -196,17 +190,17 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 }
 
 func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
-	// Get repo root
-	repoRoot, err := gitClient.GetRepoRoot()
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get repo root: %w", err)
+		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	worktreesDir := filepath.Join(repoRoot, ".worktrees")
+	worktreesDir := filepath.Join(homeDir, ".stack-worktrees")
 
-	// Check if .worktrees directory exists
+	// Check if ~/.stack-worktrees directory exists
 	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
-		fmt.Println("No .worktrees directory found.")
+		fmt.Println("No ~/.stack-worktrees directory found.")
 		return nil
 	}
 
@@ -216,7 +210,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return fmt.Errorf("failed to list worktrees: %w", err)
 	}
 
-	// Filter to only worktrees in .worktrees/ directory
+	// Filter to only worktrees in ~/.stack-worktrees directory
 	var worktreesToCheck []struct {
 		path   string
 		branch string
@@ -231,7 +225,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	}
 
 	if len(worktreesToCheck) == 0 {
-		fmt.Println("No worktrees found in .worktrees/ directory.")
+		fmt.Println("No worktrees found in ~/.stack-worktrees directory.")
 		return nil
 	}
 
@@ -289,74 +283,5 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	fmt.Println("\n✓ Worktree prune complete!")
 	fmt.Println("Tip: Run 'stack prune' to also delete the merged branches.")
 
-	return nil
-}
-
-func ensureWorktreesIgnored(repoRoot string) error {
-	gitignorePath := filepath.Join(repoRoot, ".gitignore")
-
-	// Check if .worktrees is already in .gitignore
-	if _, err := os.Stat(gitignorePath); err == nil {
-		file, err := os.Open(gitignorePath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == ".worktrees" || line == ".worktrees/" {
-				return nil // Already ignored
-			}
-		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-	}
-
-	if dryRun {
-		fmt.Println("  [DRY RUN] Adding .worktrees to .gitignore")
-		return nil
-	}
-
-	// Append .worktrees to .gitignore
-	file, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Check if file ends with newline, if not add one
-	info, err := file.Stat()
-	if err != nil {
-		return err
-	}
-
-	var prefix string
-	if info.Size() > 0 {
-		// Read last byte to check for newline
-		tempFile, err := os.Open(gitignorePath)
-		if err != nil {
-			return err
-		}
-		defer tempFile.Close()
-
-		buf := make([]byte, 1)
-		_, err = tempFile.ReadAt(buf, info.Size()-1)
-		if err != nil {
-			return err
-		}
-		if buf[0] != '\n' {
-			prefix = "\n"
-		}
-	}
-
-	_, err = file.WriteString(prefix + ".worktrees/\n")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Added .worktrees/ to .gitignore")
 	return nil
 }
