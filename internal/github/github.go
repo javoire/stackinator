@@ -36,12 +36,14 @@ func NewGitHubClient(repo string) GitHubClient {
 	return &githubClient{repo: repo}
 }
 
-// ParseRepoFromURL extracts OWNER/REPO from a git remote URL
+// ParseRepoFromURL extracts HOST/OWNER/REPO or OWNER/REPO from a git remote URL
+// For github.com, returns OWNER/REPO (gh CLI default)
+// For other hosts (GHE), returns HOST/OWNER/REPO so gh CLI knows which host to use
 // Supports formats:
-//   - git@github.com:owner/repo.git
-//   - https://github.com/owner/repo.git
-//   - git@ghe.spotify.net:owner/repo.git
-//   - https://ghe.spotify.net/owner/repo
+//   - git@github.com:owner/repo.git -> owner/repo
+//   - https://github.com/owner/repo.git -> owner/repo
+//   - git@ghe.spotify.net:owner/repo.git -> ghe.spotify.net/owner/repo
+//   - https://ghe.spotify.net/owner/repo -> ghe.spotify.net/owner/repo
 func ParseRepoFromURL(remoteURL string) string {
 	remoteURL = strings.TrimSpace(remoteURL)
 	if remoteURL == "" {
@@ -51,27 +53,39 @@ func ParseRepoFromURL(remoteURL string) string {
 	// Remove .git suffix
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 
+	var host, path string
+
 	// Handle SSH format: git@host:owner/repo
 	if strings.HasPrefix(remoteURL, "git@") {
 		parts := strings.SplitN(remoteURL, ":", 2)
 		if len(parts) == 2 {
-			return parts[1]
+			host = strings.TrimPrefix(parts[0], "git@")
+			path = parts[1]
 		}
 	}
 
 	// Handle HTTPS format: https://host/owner/repo
 	if strings.HasPrefix(remoteURL, "https://") || strings.HasPrefix(remoteURL, "http://") {
-		// Find the path after the host
 		afterScheme := strings.TrimPrefix(remoteURL, "https://")
 		afterScheme = strings.TrimPrefix(afterScheme, "http://")
-		// Split host from path
 		slashIdx := strings.Index(afterScheme, "/")
 		if slashIdx != -1 {
-			return afterScheme[slashIdx+1:]
+			host = afterScheme[:slashIdx]
+			path = afterScheme[slashIdx+1:]
 		}
 	}
 
-	return ""
+	if path == "" {
+		return ""
+	}
+
+	// For github.com, just return OWNER/REPO (it's the default)
+	if host == "github.com" {
+		return path
+	}
+
+	// For other hosts (GHE), return HOST/OWNER/REPO
+	return host + "/" + path
 }
 
 // runGH executes a gh CLI command and returns stdout
