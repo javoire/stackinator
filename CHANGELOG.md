@@ -1,3 +1,9 @@
+## [1.7.1](https://github.com/javoire/stackinator/compare/v1.7.0...v1.7.1) (2026-01-21)
+
+### Bug Fixes
+
+* auto-configure missing stackparent for branches in stack chain ([98cbc06](https://github.com/javoire/stackinator/commit/98cbc067390dbdd4911da4fedb478bbf4635e4a7))
+
 ## [1.7.0](https://github.com/javoire/stackinator/compare/v1.6.0...v1.7.0) (2025-12-22)
 
 ### Features
