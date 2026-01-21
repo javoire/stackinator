@@ -54,12 +54,12 @@ func TestParseRepoFromURL(t *testing.T) {
 		{
 			name:     "GHE SSH format",
 			url:      "git@ghe.spotify.net:some-org/some-repo.git",
-			expected: "some-org/some-repo",
+			expected: "ghe.spotify.net/some-org/some-repo",
 		},
 		{
 			name:     "GHE HTTPS format",
 			url:      "https://ghe.spotify.net/some-org/some-repo",
-			expected: "some-org/some-repo",
+			expected: "ghe.spotify.net/some-org/some-repo",
 		},
 		{
 			name:     "empty string",
