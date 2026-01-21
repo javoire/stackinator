@@ -1,3 +1,9 @@
+## [1.7.2](https://github.com/javoire/stackinator/compare/v1.7.1...v1.7.2) (2026-01-21)
+
+### Bug Fixes
+
+* use --repo flag for gh commands to handle multiple remotes ([20a9efe](https://github.com/javoire/stackinator/commit/20a9efe29d212b0d580e7f437a34a609da6e74b4))
+
 ## [1.7.1](https://github.com/javoire/stackinator/compare/v1.7.0...v1.7.1) (2026-01-21)
 
 ### Bug Fixes
