@@ -648,3 +648,8 @@ func (c *gitClient) ListWorktrees() ([]string, error) {
 
 	return paths, nil
 }
+
+// GetRemoteURL returns the URL of the specified remote (e.g., "origin")
+func (c *gitClient) GetRemoteURL(remoteName string) string {
+	return c.runCmdMayFail("remote", "get-url", remoteName)
+}

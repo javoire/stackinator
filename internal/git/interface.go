@@ -48,4 +48,5 @@ type GitClient interface {
 	AddWorktreeFromRemote(path, branch string) error
 	RemoveWorktree(path string) error
 	ListWorktrees() ([]string, error)
+	GetRemoteURL(remoteName string) string
 }

@@ -34,7 +34,8 @@ This is useful for:
 		newParent := args[0]
 
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
+		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL("origin"))
+		githubClient := github.NewGitHubClient(repo)
 
 		if err := runReparent(gitClient, githubClient, newParent); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

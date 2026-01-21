@@ -44,7 +44,8 @@ If a branch has unmerged commits locally, use --force to delete it anyway.`,
   stack prune --dry-run`,
 	Run: func(cmd *cobra.Command, args []string) {
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
+		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL("origin"))
+		githubClient := github.NewGitHubClient(repo)
 
 		if err := runPrune(gitClient, githubClient); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
