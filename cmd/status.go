@@ -41,7 +41,8 @@ This helps you visualize your stack and see which branches have PRs.`,
   #  feature-auth-tests *`,
 	Run: func(cmd *cobra.Command, args []string) {
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
+		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL("origin"))
+		githubClient := github.NewGitHubClient(repo)
 
 		if err := runStatus(gitClient, githubClient); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

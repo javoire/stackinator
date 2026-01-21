@@ -246,6 +246,11 @@ func (m *MockGitClient) ListWorktrees() ([]string, error) {
 	return args.Get(0).([]string), args.Error(1)
 }
 
+func (m *MockGitClient) GetRemoteURL(remoteName string) string {
+	args := m.Called(remoteName)
+	return args.String(0)
+}
+
 // MockGitHubClient is a mock implementation of github.GitHubClient for testing
 type MockGitHubClient struct {
 	mock.Mock

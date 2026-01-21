@@ -52,7 +52,8 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
+		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL("origin"))
+		githubClient := github.NewGitHubClient(repo)
 
 		var err error
 		if worktreePrune {

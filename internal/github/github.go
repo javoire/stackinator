@@ -26,15 +26,60 @@ type PRInfo struct {
 }
 
 // githubClient implements the GitHubClient interface using exec.Command
-type githubClient struct{}
+type githubClient struct {
+	repo string // OWNER/REPO format, used with --repo flag
+}
 
 // NewGitHubClient creates a new GitHubClient implementation
-func NewGitHubClient() GitHubClient {
-	return &githubClient{}
+// repo should be in OWNER/REPO format (e.g., "javoire/stackinator")
+func NewGitHubClient(repo string) GitHubClient {
+	return &githubClient{repo: repo}
+}
+
+// ParseRepoFromURL extracts OWNER/REPO from a git remote URL
+// Supports formats:
+//   - git@github.com:owner/repo.git
+//   - https://github.com/owner/repo.git
+//   - git@ghe.spotify.net:owner/repo.git
+//   - https://ghe.spotify.net/owner/repo
+func ParseRepoFromURL(remoteURL string) string {
+	remoteURL = strings.TrimSpace(remoteURL)
+	if remoteURL == "" {
+		return ""
+	}
+
+	// Remove .git suffix
+	remoteURL = strings.TrimSuffix(remoteURL, ".git")
+
+	// Handle SSH format: git@host:owner/repo
+	if strings.HasPrefix(remoteURL, "git@") {
+		parts := strings.SplitN(remoteURL, ":", 2)
+		if len(parts) == 2 {
+			return parts[1]
+		}
+	}
+
+	// Handle HTTPS format: https://host/owner/repo
+	if strings.HasPrefix(remoteURL, "https://") || strings.HasPrefix(remoteURL, "http://") {
+		// Find the path after the host
+		afterScheme := strings.TrimPrefix(remoteURL, "https://")
+		afterScheme = strings.TrimPrefix(afterScheme, "http://")
+		// Split host from path
+		slashIdx := strings.Index(afterScheme, "/")
+		if slashIdx != -1 {
+			return afterScheme[slashIdx+1:]
+		}
+	}
+
+	return ""
 }
 
 // runGH executes a gh CLI command and returns stdout
 func (c *githubClient) runGH(args ...string) (string, error) {
+	// Add --repo flag if repo is set (ensures correct repo with multiple remotes)
+	if c.repo != "" {
+		args = append([]string{"--repo", c.repo}, args...)
+	}
 	if Verbose {
 		fmt.Printf("  [gh] %s\n", strings.Join(args, " "))
 	}

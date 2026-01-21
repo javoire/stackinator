@@ -72,7 +72,8 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
   stack sync`,
 	Run: func(cmd *cobra.Command, args []string) {
 		gitClient := git.NewGitClient()
-		githubClient := github.NewGitHubClient()
+		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL("origin"))
+		githubClient := github.NewGitHubClient(repo)
 
 		if err := runSync(gitClient, githubClient); err != nil {
 			// Don't print if error was already displayed with detailed message
