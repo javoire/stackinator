@@ -74,97 +74,6 @@ func TestRunStatus(t *testing.T) {
 	}
 }
 
-func TestFilterMergedBranches(t *testing.T) {
-	testutil.SetupTest()
-	defer testutil.TeardownTest()
-
-	tests := []struct {
-		name             string
-		tree             *stack.TreeNode
-		prCache          map[string]*github.PRInfo
-		currentBranch    string
-		expectFiltered   bool
-		expectedBranches []string
-	}{
-		{
-			name: "keep merged branch with children",
-			tree: &stack.TreeNode{
-				Name: "main",
-				Children: []*stack.TreeNode{
-					{
-						Name: "feature-a",
-						Children: []*stack.TreeNode{
-							{Name: "feature-b", Children: nil},
-						},
-					},
-				},
-			},
-			prCache: map[string]*github.PRInfo{
-				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
-				"feature-b": testutil.NewPRInfo(2, "OPEN", "feature-a", "Feature B", "url"),
-			},
-			currentBranch:    "feature-b",
-			expectedBranches: []string{"main", "feature-a", "feature-b"}, // Keep feature-a because it has children
-		},
-		{
-			name: "filter merged leaf branch",
-			tree: &stack.TreeNode{
-				Name: "main",
-				Children: []*stack.TreeNode{
-					{
-						Name:     "feature-a",
-						Children: nil,
-					},
-				},
-			},
-			prCache: map[string]*github.PRInfo{
-				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
-			},
-			currentBranch:    "main",
-			expectedBranches: []string{"main"}, // Filter out feature-a because it's a merged leaf
-		},
-		{
-			name: "keep current branch even if merged",
-			tree: &stack.TreeNode{
-				Name: "main",
-				Children: []*stack.TreeNode{
-					{
-						Name:     "feature-a",
-						Children: nil,
-					},
-				},
-			},
-			prCache: map[string]*github.PRInfo{
-				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
-			},
-			currentBranch:    "feature-a",
-			expectedBranches: []string{"main", "feature-a"}, // Keep feature-a because it's current branch
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filtered := filterMergedBranches(tt.tree, tt.prCache, tt.currentBranch)
-
-			// Collect all branch names from filtered tree
-			var branches []string
-			var collectBranches func(*stack.TreeNode)
-			collectBranches = func(node *stack.TreeNode) {
-				if node == nil {
-					return
-				}
-				branches = append(branches, node.Name)
-				for _, child := range node.Children {
-					collectBranches(child)
-				}
-			}
-			collectBranches(filtered)
-
-			assert.Equal(t, tt.expectedBranches, branches)
-		})
-	}
-}
-
 func TestGetAllBranchNamesFromTree(t *testing.T) {
 	testutil.SetupTest()
 	defer testutil.TeardownTest()
@@ -201,7 +110,6 @@ func TestDetectSyncIssues(t *testing.T) {
 		prCache        map[string]*github.PRInfo
 		setupMocks     func(*testutil.MockGitClient)
 		expectedIssues int
-		expectedMerged int
 	}{
 		{
 			name: "branch behind parent",
@@ -214,37 +122,18 @@ func TestDetectSyncIssues(t *testing.T) {
 				mockGit.On("RemoteBranchExists", "feature-a").Return(false)
 			},
 			expectedIssues: 1,
-			expectedMerged: 0,
 		},
 		{
-			name: "branch with merged PR",
+			name: "branch up to date",
 			stackBranches: []stack.StackBranch{
 				{Name: "feature-a", Parent: "main"},
 			},
-			prCache: map[string]*github.PRInfo{
-				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
-			},
+			prCache: make(map[string]*github.PRInfo),
 			setupMocks: func(mockGit *testutil.MockGitClient) {
-				// No calls expected for merged branches
+				mockGit.On("IsCommitsBehind", "feature-a", "main").Return(false, nil)
+				mockGit.On("RemoteBranchExists", "feature-a").Return(false)
 			},
 			expectedIssues: 0,
-			expectedMerged: 1,
-		},
-		{
-			name: "parent PR merged",
-			stackBranches: []stack.StackBranch{
-				{Name: "feature-b", Parent: "feature-a"},
-			},
-			prCache: map[string]*github.PRInfo{
-				"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
-			},
-			setupMocks: func(mockGit *testutil.MockGitClient) {
-				mockGit.On("GetDefaultBranch").Return("main")
-				mockGit.On("IsCommitsBehind", "feature-b", "feature-a").Return(false, nil)
-				mockGit.On("RemoteBranchExists", "feature-b").Return(false)
-			},
-			expectedIssues: 1, // Issue because parent is merged
-			expectedMerged: 0,
 		},
 	}
 
@@ -263,7 +152,6 @@ func TestDetectSyncIssues(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Len(t, result.issues, tt.expectedIssues, "Expected %d issues, got %d", tt.expectedIssues, len(result.issues))
-			assert.Len(t, result.mergedBranches, tt.expectedMerged, "Expected %d merged branches, got %d", tt.expectedMerged, len(result.mergedBranches))
 
 			mockGit.AssertExpectations(t)
 		})

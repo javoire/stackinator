@@ -141,10 +141,11 @@ func (c *githubClient) GetPRForBranch(branch string) (*PRInfo, error) {
 	}, nil
 }
 
-// GetAllPRs fetches all PRs for the repository in a single call
+// GetAllPRs fetches all open PRs for the repository in a single call
+// Only fetches open PRs to avoid timeouts on repos with many PRs
 func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
-	// Fetch all PRs (open, closed, and merged) in one call
-	output, err := c.runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "1000")
+	// Fetch only open PRs - much faster and avoids 502 timeouts on large repos
+	output, err := c.runGH("pr", "list", "--state", "open", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "500")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list PRs: %w", err)
 	}
@@ -163,12 +164,17 @@ func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 		return nil, fmt.Errorf("failed to parse PR list: %w", err)
 	}
 
+	if Verbose {
+		fmt.Printf("  [gh] Fetched %d PRs\n", len(prs))
+		for _, pr := range prs {
+			fmt.Printf("  [gh]   - %s (PR #%d, %s)\n", pr.HeadRefName, pr.Number, pr.State)
+		}
+	}
+
 	// Create a map of branch name -> PR info
-	// When multiple PRs exist for the same branch, prefer OPEN over closed/merged
 	prMap := make(map[string]*PRInfo)
 	for _, pr := range prs {
-		existing, exists := prMap[pr.HeadRefName]
-		prInfo := &PRInfo{
+		prMap[pr.HeadRefName] = &PRInfo{
 			Number:           pr.Number,
 			State:            pr.State,
 			Base:             pr.BaseRefName,
@@ -176,15 +182,6 @@ func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 			URL:              pr.URL,
 			MergeStateStatus: pr.MergeStateStatus,
 		}
-
-		if !exists {
-			// No PR for this branch yet, add it
-			prMap[pr.HeadRefName] = prInfo
-		} else if pr.State == "OPEN" && existing.State != "OPEN" {
-			// New PR is open and existing is not - prefer the open one
-			prMap[pr.HeadRefName] = prInfo
-		}
-		// Otherwise keep the existing PR (first open PR wins, or first closed if no open)
 	}
 
 	return prMap, nil

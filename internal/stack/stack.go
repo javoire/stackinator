@@ -64,6 +64,11 @@ func GetStackChain(gitClient git.GitClient, branch string) ([]string, error) {
 		return nil, err
 	}
 
+	// If current branch has no stackparent, it's not in a stack
+	if parents[branch] == "" {
+		return []string{}, nil
+	}
+
 	var chain []string
 	current := branch
 	seen := make(map[string]bool)
@@ -191,7 +196,8 @@ func BuildStackTreeForBranch(gitClient git.GitClient, branchName string) (*TreeN
 	}
 
 	if len(chain) == 0 {
-		return nil, fmt.Errorf("no stack chain found for branch %s", branchName)
+		// Current branch is not in a stack
+		return nil, nil
 	}
 
 	// Build a set of branches in the chain for quick lookup
