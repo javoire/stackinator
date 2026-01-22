@@ -130,6 +130,8 @@ func TestRunSyncMergedParent(t *testing.T) {
 			"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
 		}
 		mockGH.On("GetAllPRs").Return(prCache, nil)
+		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
+		mockGH.On("GetPRForBranch", "feature-b").Return(nil, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
