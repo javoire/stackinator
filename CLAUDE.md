@@ -115,3 +115,7 @@ Test patterns:
 4. **Error Handling**: Commands return early on git errors. For rebase conflicts, user must resolve manually and re-run `stack sync`.
 
 5. **Branch Existence**: Parent branches may not exist locally if they were merged and deleted. Code handles missing parents gracefully.
+
+## Releases
+
+Releases are automated via GitHub Actions. When PRs are merged to main, a release is created automatically. Do not create releases manually.
