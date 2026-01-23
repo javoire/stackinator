@@ -676,6 +676,87 @@ func TestRunSyncResume(t *testing.T) {
 	})
 }
 
+func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("auto-configures parent branch missing stackparent", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: feature-b has stackparent=feature-a, but feature-a has NO stackparent
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-b").Return(nil)
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		mockGit.On("GetConfig", "branch.feature-b.stackparent").Return("feature-a")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		// Key difference: feature-a is NOT in stackParents (no stackparent configured)
+		stackParents := map[string]string{
+			"feature-b": "feature-a", // feature-a is missing!
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		// The fix should auto-configure feature-a with parent=main
+		mockGit.On("BranchExists", "feature-a").Return(true)
+		mockGit.On("SetConfig", "branch.feature-a.stackparent", "main").Return(nil)
+
+		// Parallel operations
+		mockGit.On("Fetch").Return(nil)
+		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil)
+		mockGH.On("GetPRForBranch", "main").Return(nil, nil)
+		mockGH.On("GetPRForBranch", "feature-b").Return(nil, nil)
+
+		// Worktree checks
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+			"feature-b": true,
+		})
+
+		// Process feature-a first (auto-configured)
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil)
+		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
+		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
+		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
+
+		// Process feature-b second
+		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
+		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
+		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
+		mockGit.On("GetUniqueCommitsByPatch", "feature-a", "feature-b").Return([]string{"def456"}, nil)
+		mockGit.On("GetMergeBase", "feature-b", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("Rebase", "feature-a").Return(nil)
+		mockGit.On("FetchBranch", "feature-b").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
+
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+
+		err := runSync(mockGit, mockGH)
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+}
+
 func TestRunSyncAbort(t *testing.T) {
 	testutil.SetupTest()
 	defer testutil.TeardownTest()

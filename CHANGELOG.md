@@ -1,3 +1,26 @@
+## [1.7.3](https://github.com/javoire/stackinator/compare/v1.7.2...v1.7.3) (2026-01-23)
+
+### Bug Fixes
+
+* add GetPRForBranch mock expectations to sync tests ([69ea39e](https://github.com/javoire/stackinator/commit/69ea39efa937a6f23f15049aef9bf1cd4a5ccd44))
+* add GetPRForBranch mock to auto-configure stackparent test ([50d3b3a](https://github.com/javoire/stackinator/commit/50d3b3a4d893f6c9d61fae0472f65c002e856a6b))
+* add missing GetPRForBranch mock in TestRunSyncMergedParent ([3919ded](https://github.com/javoire/stackinator/commit/3919ded18794b25d04db5f961269ddaf93b7e371))
+* fetch only open PRs to avoid 502 timeouts on large repos ([3f4154a](https://github.com/javoire/stackinator/commit/3f4154a3505f6d82f2ab12ece019e7c3894ba1c2))
+* include host in repo path for GitHub Enterprise remotes ([2033fca](https://github.com/javoire/stackinator/commit/2033fca30159cfbc700bdc53adac792e318b363a))
+* update TestRunSyncNoStackBranches mock expectations ([db91dbd](https://github.com/javoire/stackinator/commit/db91dbd27af0251929b3414bd6b3d0565f932064))
+
+## [1.7.2](https://github.com/javoire/stackinator/compare/v1.7.1...v1.7.2) (2026-01-21)
+
+### Bug Fixes
+
+* use --repo flag for gh commands to handle multiple remotes ([20a9efe](https://github.com/javoire/stackinator/commit/20a9efe29d212b0d580e7f437a34a609da6e74b4))
+
+## [1.7.1](https://github.com/javoire/stackinator/compare/v1.7.0...v1.7.1) (2026-01-21)
+
+### Bug Fixes
+
+* auto-configure missing stackparent for branches in stack chain ([98cbc06](https://github.com/javoire/stackinator/commit/98cbc067390dbdd4911da4fedb478bbf4635e4a7))
+
 ## [1.7.0](https://github.com/javoire/stackinator/compare/v1.6.0...v1.7.0) (2025-12-22)
 
 ### Features

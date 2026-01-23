@@ -95,10 +95,11 @@ git config stack.baseBranch develop  # Default is "main"
 
 ## Testing
 
-Currently no test files exist. When adding tests:
+**Always use `./scripts/test` to run tests** (handles CGO_ENABLED=0 for macOS compatibility).
 
+Test patterns:
 - Use table-driven tests for topological sort and tree building
-- Mock git/gh command execution for unit tests
+- Mock git/gh command execution for unit tests using `testutil.MockGitClient` and `testutil.MockGitHubClient`
 - Consider integration tests that use temporary git repos
 
 **IMPORTANT**: When testing git operations (creating branches, stashing, etc.), always use `./tests/test-repo` directory, NOT the main repository. This keeps the main repo clean and prevents pollution from test branches.

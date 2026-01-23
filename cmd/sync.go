@@ -336,6 +336,48 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		}
 	}
 
+	// Detect branches in chain that don't have stackparent configured
+	// and auto-configure them with inferred parents
+	existingBranchNames := make(map[string]bool)
+	for _, b := range stackBranches {
+		existingBranchNames[b.Name] = true
+	}
+
+	// Walk the chain and add missing branches
+	for i, branchName := range chain {
+		if branchName == baseBranch {
+			continue // Skip base branch
+		}
+		if existingBranchNames[branchName] {
+			continue // Already in stackBranches
+		}
+
+		// Infer parent from chain (previous branch in the chain)
+		var inferredParent string
+		if i > 0 {
+			inferredParent = chain[i-1]
+		} else {
+			inferredParent = baseBranch
+		}
+
+		// Check if branch exists locally before adding
+		if gitClient.BranchExists(branchName) {
+			stackBranches = append(stackBranches, stack.StackBranch{
+				Name:   branchName,
+				Parent: inferredParent,
+			})
+			existingBranchNames[branchName] = true
+
+			// Configure stackparent so future syncs work correctly
+			configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
+			if err := gitClient.SetConfig(configKey, inferredParent); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to set stackparent for %s: %v\n", branchName, err)
+			} else {
+				fmt.Printf("Auto-configured %s with parent %s\n", branchName, inferredParent)
+			}
+		}
+	}
+
 	// Sort branches in topological order (bottom to top)
 	sorted, err := stack.TopologicalSort(stackBranches)
 	if err != nil {
@@ -459,7 +501,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 				grandparent = stack.GetBaseBranch(gitClient)
 			}
 
-			fmt.Printf("  Updating parent from %s to %s\n", branch.Parent, grandparent)
+			fmt.Printf("  ✓ Updated parent from %s to %s\n", branch.Parent, grandparent)
 			configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
 			if err := gitClient.SetConfig(configKey, grandparent); err != nil {
 				fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
@@ -689,7 +731,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 							return fmt.Errorf("failed to restore stackparent config: %w", err)
 						}
 
-						fmt.Printf("✓ Rebuilt %s (backup saved as %s)\n", branch.Name, backupBranch)
+						fmt.Printf("  ✓ Rebuilt %s (backup saved as %s)\n", branch.Name, backupBranch)
 						fmt.Printf("  To delete backup later: git branch -D %s\n", backupBranch)
 
 						// Branch is now clean - no need to rebase, just return nil
@@ -809,10 +851,10 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 				if err := githubClient.UpdatePRBase(pr.Number, branch.Parent); err != nil {
 					fmt.Fprintf(os.Stderr, "  Warning: failed to update PR base: %v\n", err)
 				} else {
-					fmt.Printf("✓   PR #%d updated\n", pr.Number)
+					fmt.Printf("  ✓ PR #%d updated\n", pr.Number)
 				}
 			} else {
-				fmt.Printf("✓   PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
+				fmt.Printf("  ✓ PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
 			}
 		} else {
 			fmt.Printf("  No PR found (create one with 'gh pr create')\n")
