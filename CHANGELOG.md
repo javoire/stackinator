@@ -1,3 +1,9 @@
+## [1.7.4](https://github.com/javoire/stackinator/compare/v1.7.3...v1.7.4) (2026-01-23)
+
+### Bug Fixes
+
+* don't suggest rebase for merged PRs in status ([#46](https://github.com/javoire/stackinator/issues/46)) ([e19b5f6](https://github.com/javoire/stackinator/commit/e19b5f670f99114fa2decfb302184c5d35cec8ca))
+
 ## [1.7.3](https://github.com/javoire/stackinator/compare/v1.7.2...v1.7.3) (2026-01-23)
 
 ### Bug Fixes
