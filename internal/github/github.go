@@ -36,12 +36,14 @@ func NewGitHubClient(repo string) GitHubClient {
 	return &githubClient{repo: repo}
 }
 
-// ParseRepoFromURL extracts OWNER/REPO from a git remote URL
+// ParseRepoFromURL extracts HOST/OWNER/REPO or OWNER/REPO from a git remote URL
+// For github.com, returns OWNER/REPO (gh CLI default)
+// For other hosts (GHE), returns HOST/OWNER/REPO so gh CLI knows which host to use
 // Supports formats:
-//   - git@github.com:owner/repo.git
-//   - https://github.com/owner/repo.git
-//   - git@ghe.spotify.net:owner/repo.git
-//   - https://ghe.spotify.net/owner/repo
+//   - git@github.com:owner/repo.git -> owner/repo
+//   - https://github.com/owner/repo.git -> owner/repo
+//   - git@ghe.spotify.net:owner/repo.git -> ghe.spotify.net/owner/repo
+//   - https://ghe.spotify.net/owner/repo -> ghe.spotify.net/owner/repo
 func ParseRepoFromURL(remoteURL string) string {
 	remoteURL = strings.TrimSpace(remoteURL)
 	if remoteURL == "" {
@@ -51,27 +53,39 @@ func ParseRepoFromURL(remoteURL string) string {
 	// Remove .git suffix
 	remoteURL = strings.TrimSuffix(remoteURL, ".git")
 
+	var host, path string
+
 	// Handle SSH format: git@host:owner/repo
 	if strings.HasPrefix(remoteURL, "git@") {
 		parts := strings.SplitN(remoteURL, ":", 2)
 		if len(parts) == 2 {
-			return parts[1]
+			host = strings.TrimPrefix(parts[0], "git@")
+			path = parts[1]
 		}
 	}
 
 	// Handle HTTPS format: https://host/owner/repo
 	if strings.HasPrefix(remoteURL, "https://") || strings.HasPrefix(remoteURL, "http://") {
-		// Find the path after the host
 		afterScheme := strings.TrimPrefix(remoteURL, "https://")
 		afterScheme = strings.TrimPrefix(afterScheme, "http://")
-		// Split host from path
 		slashIdx := strings.Index(afterScheme, "/")
 		if slashIdx != -1 {
-			return afterScheme[slashIdx+1:]
+			host = afterScheme[:slashIdx]
+			path = afterScheme[slashIdx+1:]
 		}
 	}
 
-	return ""
+	if path == "" {
+		return ""
+	}
+
+	// For github.com, just return OWNER/REPO (it's the default)
+	if host == "github.com" {
+		return path
+	}
+
+	// For other hosts (GHE), return HOST/OWNER/REPO
+	return host + "/" + path
 }
 
 // runGH executes a gh CLI command and returns stdout
@@ -127,10 +141,11 @@ func (c *githubClient) GetPRForBranch(branch string) (*PRInfo, error) {
 	}, nil
 }
 
-// GetAllPRs fetches all PRs for the repository in a single call
+// GetAllPRs fetches all open PRs for the repository in a single call
+// Only fetches open PRs to avoid timeouts on repos with many PRs
 func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
-	// Fetch all PRs (open, closed, and merged) in one call
-	output, err := c.runGH("pr", "list", "--state", "all", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "1000")
+	// Fetch only open PRs - much faster and avoids 502 timeouts on large repos
+	output, err := c.runGH("pr", "list", "--state", "open", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "500")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list PRs: %w", err)
 	}
@@ -149,12 +164,17 @@ func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 		return nil, fmt.Errorf("failed to parse PR list: %w", err)
 	}
 
+	if Verbose {
+		fmt.Printf("  [gh] Fetched %d PRs\n", len(prs))
+		for _, pr := range prs {
+			fmt.Printf("  [gh]   - %s (PR #%d, %s)\n", pr.HeadRefName, pr.Number, pr.State)
+		}
+	}
+
 	// Create a map of branch name -> PR info
-	// When multiple PRs exist for the same branch, prefer OPEN over closed/merged
 	prMap := make(map[string]*PRInfo)
 	for _, pr := range prs {
-		existing, exists := prMap[pr.HeadRefName]
-		prInfo := &PRInfo{
+		prMap[pr.HeadRefName] = &PRInfo{
 			Number:           pr.Number,
 			State:            pr.State,
 			Base:             pr.BaseRefName,
@@ -162,15 +182,6 @@ func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
 			URL:              pr.URL,
 			MergeStateStatus: pr.MergeStateStatus,
 		}
-
-		if !exists {
-			// No PR for this branch yet, add it
-			prMap[pr.HeadRefName] = prInfo
-		} else if pr.State == "OPEN" && existing.State != "OPEN" {
-			// New PR is open and existing is not - prefer the open one
-			prMap[pr.HeadRefName] = prInfo
-		}
-		// Otherwise keep the existing PR (first open PR wins, or first closed if no open)
 	}
 
 	return prMap, nil

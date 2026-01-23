@@ -435,6 +435,26 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		prCache = make(map[string]*github.PRInfo)
 	}
 
+	// GetAllPRs only fetches open PRs (to avoid 502 timeouts on large repos).
+	// For branches in our stack that aren't in the cache, check individually
+	// to detect merged PRs that need special handling.
+	for _, branch := range sorted {
+		// Skip if already in cache (has open PR)
+		if _, exists := prCache[branch.Name]; exists {
+			continue
+		}
+		// Fetch PR info for this branch (might be merged or non-existent)
+		if pr, err := githubClient.GetPRForBranch(branch.Name); err == nil && pr != nil {
+			prCache[branch.Name] = pr
+		}
+		// Also check parent if not in cache
+		if _, exists := prCache[branch.Parent]; !exists {
+			if pr, err := githubClient.GetPRForBranch(branch.Parent); err == nil && pr != nil {
+				prCache[branch.Parent] = pr
+			}
+		}
+	}
+
 	// Get all remote branches in one call (more efficient than checking each branch individually)
 	remoteBranches := gitClient.GetRemoteBranchesSet()
 
