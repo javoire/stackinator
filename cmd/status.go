@@ -326,6 +326,14 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 			fmt.Printf("\n[%d/%d] Checking '%s' (parent: %s)\n", i+1, len(stackBranches), branch.Name, branch.Parent)
 		}
 
+		// Skip branches with merged PRs - they don't need any sync action
+		if pr, exists := prCache[branch.Name]; exists && pr.State == "MERGED" {
+			if verbose {
+				fmt.Printf("  Skipping (PR is merged)\n")
+			}
+			continue
+		}
+
 		// Check if PR base matches the configured parent (if PR exists)
 		if pr, exists := prCache[branch.Name]; exists {
 			if verbose {
