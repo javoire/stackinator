@@ -707,6 +707,9 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
 		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil)
+		mockGH.On("GetPRForBranch", "main").Return(nil, nil)
+		mockGH.On("GetPRForBranch", "feature-b").Return(nil, nil)
 
 		// Worktree checks
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
