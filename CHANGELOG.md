@@ -1,3 +1,9 @@
+## [1.8.0](https://github.com/javoire/stackinator/compare/v1.7.4...v1.8.0) (2026-01-27)
+
+### Features
+
+* add colorful terminal output ([#48](https://github.com/javoire/stackinator/issues/48)) ([1522bc4](https://github.com/javoire/stackinator/commit/1522bc407de6993d4553b3a9628a1d3a87693a53))
+
 ## [1.7.4](https://github.com/javoire/stackinator/compare/v1.7.3...v1.7.4) (2026-01-23)
 
 ### Bug Fixes
