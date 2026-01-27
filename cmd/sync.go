@@ -609,9 +609,10 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 		// Rebase onto parent
 		// If parent was just merged (oldParent set), use --onto to exclude old parent's commits
-		if err := spinner.WrapWithSuccess(
-			fmt.Sprintf("  Rebasing onto %s...", rebaseTarget),
-			fmt.Sprintf("  Rebased onto %s", rebaseTarget),
+		if err := spinner.WrapWithSuccessIndented(
+			"  ",
+			fmt.Sprintf("Rebasing onto %s...", rebaseTarget),
+			fmt.Sprintf("Rebased onto %s", rebaseTarget),
 			func() error {
 				if oldParent != "" {
 					// Parent was merged - use --onto to handle squash merge
@@ -794,9 +795,10 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 		// Push to origin - only if the branch already exists remotely
 		if branchExistsOnRemote {
-			pushErr := spinner.WrapWithSuccess(
-				"  Pushing to origin...",
-				"  Pushed to origin",
+			pushErr := spinner.WrapWithSuccessIndented(
+				"  ",
+				"Pushing to origin...",
+				"Pushed to origin",
 				func() error {
 					if syncForce {
 						// Use regular --force (bypasses --force-with-lease safety checks)
