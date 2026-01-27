@@ -1,3 +1,9 @@
+## [1.8.1](https://github.com/javoire/stackinator/compare/v1.8.0...v1.8.1) (2026-01-27)
+
+### Bug Fixes
+
+* consistent spacing of check icons in sync output ([#49](https://github.com/javoire/stackinator/issues/49)) ([ce2bf17](https://github.com/javoire/stackinator/commit/ce2bf17a793d02cd7d54d9ae915c0046c4a1b3a5))
+
 ## [1.8.0](https://github.com/javoire/stackinator/compare/v1.7.4...v1.8.0) (2026-01-27)
 
 ### Features
