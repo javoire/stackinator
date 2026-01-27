@@ -156,6 +156,27 @@ func WrapWithSuccess(message, successMessage string, fn func() error) error {
 	return nil
 }
 
+// WrapWithSuccessIndented runs a function with a spinner and shows indented success/error message
+func WrapWithSuccessIndented(indent, message, successMessage string, fn func() error) error {
+	if !Enabled {
+		// When disabled (verbose mode), print message and run
+		fmt.Println(indent + message)
+		err := fn()
+		if err != nil {
+			fmt.Printf("%s%s Error: %v\n", indent, red.Sprint("✗"), err)
+		}
+		return err
+	}
+	sp := New(indent + message).Start()
+	err := fn()
+	if err != nil {
+		sp.Stop(fmt.Sprintf("%s%s %s: %v", indent, red.Sprint("✗"), message, err))
+		return err
+	}
+	sp.Stop(fmt.Sprintf("%s%s %s", indent, green.Sprint("✓"), successMessage))
+	return nil
+}
+
 // ProgressFunc is a function that can be called to update spinner progress
 type ProgressFunc func(message string)
 
