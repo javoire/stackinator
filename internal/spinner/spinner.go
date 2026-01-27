@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 // Enabled controls whether spinners are displayed (disabled in verbose mode)
@@ -127,6 +129,12 @@ func Wrap(message string, fn func() error) error {
 	return err
 }
 
+// Color helpers for spinner output
+var (
+	green = color.New(color.FgGreen)
+	red   = color.New(color.FgRed)
+)
+
 // WrapWithSuccess runs a function with a spinner and shows success/error message
 func WrapWithSuccess(message, successMessage string, fn func() error) error {
 	if !Enabled {
@@ -134,17 +142,17 @@ func WrapWithSuccess(message, successMessage string, fn func() error) error {
 		fmt.Println(message)
 		err := fn()
 		if err != nil {
-			fmt.Printf("✗ Error: %v\n", err)
+			fmt.Printf("%s Error: %v\n", red.Sprint("✗"), err)
 		}
 		return err
 	}
 	sp := New(message).Start()
 	err := fn()
 	if err != nil {
-		sp.Stop(fmt.Sprintf("✗ %s: %v", message, err))
+		sp.Stop(fmt.Sprintf("%s %s: %v", red.Sprint("✗"), message, err))
 		return err
 	}
-	sp.Stop(fmt.Sprintf("✓ %s", successMessage))
+	sp.Stop(fmt.Sprintf("%s %s", green.Sprint("✓"), successMessage))
 	return nil
 }
 

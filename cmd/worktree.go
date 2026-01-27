@@ -10,6 +10,7 @@ import (
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/spinner"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -122,7 +123,7 @@ func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, wo
 		baseRef = "origin/" + baseBranch
 	}
 
-	fmt.Printf("Creating new branch %s from %s\n", branchName, baseRef)
+	fmt.Printf("Creating new branch %s from %s\n", ui.Branch(branchName), ui.Branch(baseRef))
 
 	// Create worktree with new branch
 	if err := gitClient.AddWorktreeNewBranch(worktreePath, branchName, baseRef); err != nil {
@@ -136,9 +137,9 @@ func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, wo
 	}
 
 	if !dryRun {
-		fmt.Printf("✓ Created worktree at %s\n", worktreePath)
-		fmt.Printf("✓ Branch %s with parent %s\n", branchName, baseBranch)
-		fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
+		fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s", worktreePath)))
+		fmt.Println(ui.Success(fmt.Sprintf("Branch %s with parent %s", ui.Branch(branchName), ui.Branch(baseBranch))))
+		fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 	}
 
 	return nil
@@ -147,26 +148,26 @@ func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, wo
 func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath string) error {
 	// Check if branch exists locally
 	if gitClient.BranchExists(branchName) {
-		fmt.Printf("Creating worktree for local branch %s\n", branchName)
+		fmt.Printf("Creating worktree for local branch %s\n", ui.Branch(branchName))
 		if err := gitClient.AddWorktree(worktreePath, branchName); err != nil {
 			return fmt.Errorf("failed to create worktree: %w", err)
 		}
 		if !dryRun {
-			fmt.Printf("✓ Created worktree at %s\n", worktreePath)
-			fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
+			fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s", worktreePath)))
+			fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 		}
 		return nil
 	}
 
 	// Check if branch exists on remote
 	if gitClient.RemoteBranchExists(branchName) {
-		fmt.Printf("Creating worktree for remote branch %s\n", branchName)
+		fmt.Printf("Creating worktree for remote branch %s\n", ui.Branch(branchName))
 		if err := gitClient.AddWorktreeFromRemote(worktreePath, branchName); err != nil {
 			return fmt.Errorf("failed to create worktree: %w", err)
 		}
 		if !dryRun {
-			fmt.Printf("✓ Created worktree at %s (tracking origin/%s)\n", worktreePath, branchName)
-			fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
+			fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s (tracking origin/%s)", worktreePath, branchName)))
+			fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 		}
 		return nil
 	}
@@ -177,7 +178,7 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	fmt.Printf("Creating new branch %s from %s\n", branchName, currentBranch)
+	fmt.Printf("Creating new branch %s from %s\n", ui.Branch(branchName), ui.Branch(currentBranch))
 	if err := gitClient.AddWorktreeNewBranch(worktreePath, branchName, currentBranch); err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
@@ -189,9 +190,9 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 	}
 
 	if !dryRun {
-		fmt.Printf("✓ Created worktree at %s\n", worktreePath)
-		fmt.Printf("✓ Branch %s with parent %s\n", branchName, currentBranch)
-		fmt.Printf("\nTo switch to this worktree, run:\n  cd %s\n", worktreePath)
+		fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s", worktreePath)))
+		fmt.Println(ui.Success(fmt.Sprintf("Branch %s with parent %s", ui.Branch(branchName), ui.Branch(currentBranch))))
+		fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 	}
 	return nil
 }
@@ -267,7 +268,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	fmt.Printf("Found %d worktree(s) with merged PRs:\n", len(mergedWorktrees))
 	for _, wt := range mergedWorktrees {
 		pr := prCache[wt.branch]
-		fmt.Printf("  - %s (%s, PR #%d)\n", wt.branch, wt.path, pr.Number)
+		fmt.Printf("  - %s (%s, PR #%d)\n", ui.Branch(wt.branch), wt.path, pr.Number)
 	}
 	fmt.Println()
 
@@ -278,17 +279,18 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 
 	// Remove each worktree
 	for i, wt := range mergedWorktrees {
-		fmt.Printf("(%d/%d) Removing worktree for %s...\n", i+1, len(mergedWorktrees), wt.branch)
+		fmt.Printf("%s Removing worktree for %s...\n", ui.Progress(i+1, len(mergedWorktrees)), ui.Branch(wt.branch))
 
 		if err := gitClient.RemoveWorktree(wt.path); err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: failed to remove worktree: %v\n", err)
 		} else {
-			fmt.Println("  ✓ Removed")
+			fmt.Printf("  %s Removed\n", ui.SuccessIcon())
 		}
 	}
 
-	fmt.Println("\n✓ Worktree prune complete!")
-	fmt.Println("Tip: Run 'stack prune' to also delete the merged branches.")
+	fmt.Println()
+	fmt.Println(ui.Success("Worktree prune complete!"))
+	fmt.Printf("Tip: Run '%s' to also delete the merged branches.\n", ui.Command("stack prune"))
 
 	return nil
 }

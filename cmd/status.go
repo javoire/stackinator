@@ -12,6 +12,7 @@ import (
 	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -133,8 +134,8 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 		// Wait for PR fetch to complete before returning
 		wg.Wait()
 		fmt.Println("No stack branches found.")
-		fmt.Printf("Current branch: %s\n", currentBranch)
-		fmt.Println("\nUse 'stack new <branch-name>' to create a new stack branch.")
+		fmt.Printf("Current branch: %s\n", ui.Branch(currentBranch))
+		fmt.Printf("\nUse '%s' to create a new stack branch.\n", ui.Command("stack new <branch-name>"))
 		return nil
 	}
 
@@ -142,8 +143,8 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 	// Check this BEFORE waiting for PR fetch to avoid long delays
 	if tree == nil {
 		baseBranch := stack.GetBaseBranch(gitClient)
-		fmt.Printf("Current branch '%s' is not part of a stack.\n\n", currentBranch)
-		fmt.Printf("Add to stack with '%s' as parent? [Y/n] ", baseBranch)
+		fmt.Printf("Current branch '%s' is not part of a stack.\n\n", ui.Branch(currentBranch))
+		fmt.Printf("Add to stack with '%s' as parent? [Y/n] ", ui.Branch(baseBranch))
 
 		reader := bufio.NewReader(os.Stdin)
 		input, err := reader.ReadString('\n')
@@ -158,7 +159,8 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 			if err := gitClient.SetConfig(configKey, baseBranch); err != nil {
 				return fmt.Errorf("failed to set stack parent: %w", err)
 			}
-			fmt.Printf("✓ Added '%s' to stack with parent '%s'\n\n", currentBranch, baseBranch)
+			fmt.Println(ui.Success(fmt.Sprintf("Added '%s' to stack with parent '%s'", ui.Branch(currentBranch), ui.Branch(baseBranch))))
+			fmt.Println()
 			// Run status again to show the stack
 			return runStatus(gitClient, githubClient)
 		}
@@ -270,24 +272,24 @@ func printTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBra
 	// Determine the current branch marker
 	marker := ""
 	if node.Name == currentBranch {
-		marker = " *"
+		marker = ui.CurrentBranchMarker()
 	}
 
 	// Get PR info from cache
 	prInfo := ""
 	if node.Name != stack.GetBaseBranch(gitClient) {
 		if pr, exists := prCache[node.Name]; exists {
-			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
+			prInfo = fmt.Sprintf(" %s", ui.PRInfo(pr.URL, pr.State))
 		}
 	}
 
 	// Print pipe if needed
 	if isPipe {
-		fmt.Println("  |")
+		fmt.Printf("  %s\n", ui.Pipe())
 	}
 
 	// Print current node
-	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
+	fmt.Printf(" %s%s%s\n", ui.Branch(node.Name), prInfo, marker)
 
 	// Print children vertically
 	for _, child := range node.Children {
@@ -404,14 +406,14 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 func printSyncIssues(result *syncIssuesResult) {
 	if len(result.issues) > 0 {
 		fmt.Println()
-		fmt.Println("⚠ Stack out of sync detected:")
+		fmt.Println(ui.Warning("Stack out of sync detected:"))
 		for _, issue := range result.issues {
 			fmt.Println(issue)
 		}
 		fmt.Println()
-		fmt.Println("Run 'stack sync' to rebase branches and update PR bases.")
+		fmt.Printf("Run '%s' to rebase branches and update PR bases.\n", ui.Command("stack sync"))
 	} else {
 		fmt.Println()
-		fmt.Println("✓ Stack is perfectly synced! All branches are up to date.")
+		fmt.Println(ui.Success("Stack is perfectly synced! All branches are up to date."))
 	}
 }

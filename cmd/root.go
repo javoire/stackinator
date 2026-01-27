@@ -7,12 +7,14 @@ import (
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/spinner"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var (
 	dryRun  bool
 	verbose bool
+	noColor bool
 )
 
 var rootCmd = &cobra.Command{
@@ -49,6 +51,9 @@ The tool helps you create, navigate, and sync stacked branches with minimal over
 		// Disable spinners in verbose mode to avoid visual conflicts
 		spinner.Enabled = !verbose
 
+		// Set color output flag
+		ui.SetNoColor(noColor)
+
 		// Validate we're in a git repository
 		gitClient := git.NewGitClient()
 		if _, err := gitClient.GetRepoRoot(); err != nil {
@@ -61,6 +66,7 @@ The tool helps you create, navigate, and sync stacked branches with minimal over
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Show what would happen without executing")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed output")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 
 	// Add subcommands
 	rootCmd.AddCommand(newCmd)

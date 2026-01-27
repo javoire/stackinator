@@ -9,6 +9,7 @@ import (
 	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -154,7 +155,7 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	fmt.Printf("Found %d merged branch(es) to prune:\n", len(mergedBranches))
 	for _, branch := range mergedBranches {
 		pr := prCache[branch]
-		fmt.Printf("  - %s (PR #%d)\n", branch, pr.Number)
+		fmt.Printf("  - %s (PR #%d)\n", ui.Branch(branch), pr.Number)
 	}
 	fmt.Println()
 
@@ -165,7 +166,7 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 	// Prune each merged branch
 	for i, branch := range mergedBranches {
-		fmt.Printf("(%d/%d) Pruning %s...\n", i+1, len(mergedBranches), branch)
+		fmt.Printf("%s Pruning %s...\n", ui.Progress(i+1, len(mergedBranches)), ui.Branch(branch))
 
 		// Remove from stack tracking (if in stack)
 		configKey := fmt.Sprintf("branch.%s.stackparent", branch)
@@ -178,7 +179,7 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 		// Don't delete current branch
 		if branch == currentBranch {
-			fmt.Println("  ⚠ Skipping deletion (currently checked out)")
+			fmt.Printf("  %s Skipping deletion (currently checked out)\n", ui.WarningIcon())
 			fmt.Println()
 			continue
 		}
@@ -195,15 +196,16 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if deleteErr != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: failed to delete branch: %v\n", deleteErr)
 			if !pruneForce {
-				fmt.Fprintf(os.Stderr, "  Use 'stack prune --force' to force delete, or manually delete with: git branch -D %s\n", branch)
+				fmt.Fprintf(os.Stderr, "  Use '%s' to force delete, or manually delete with: %s\n",
+					ui.Command("stack prune --force"), ui.Command(fmt.Sprintf("git branch -D %s", branch)))
 			}
 		} else {
-			fmt.Println("  ✓ Deleted")
+			fmt.Printf("  %s Deleted\n", ui.SuccessIcon())
 		}
 		fmt.Println()
 	}
 
-	fmt.Println("✓ Prune complete!")
+	fmt.Println(ui.Success("Prune complete!"))
 
 	return nil
 }

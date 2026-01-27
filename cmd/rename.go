@@ -6,6 +6,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +63,7 @@ func runRename(gitClient git.GitClient, newName string) error {
 		return fmt.Errorf("failed to get children: %w", err)
 	}
 
-	fmt.Printf("Renaming branch %s -> %s\n", oldName, newName)
+	fmt.Printf("Renaming branch %s -> %s\n", ui.Branch(oldName), ui.Branch(newName))
 	if len(children) > 0 {
 		fmt.Printf("  Will update %d child branch(es)\n", len(children))
 	}
@@ -94,11 +95,11 @@ func runRename(gitClient git.GitClient, newName string) error {
 		if err := gitClient.SetConfig(childConfigKey, newName); err != nil {
 			return fmt.Errorf("failed to update child %s: %w", child.Name, err)
 		}
-		fmt.Printf("  ✓ Updated child %s to point to %s\n", child.Name, newName)
+		fmt.Printf("  %s Updated child %s to point to %s\n", ui.SuccessIcon(), ui.Branch(child.Name), ui.Branch(newName))
 	}
 
 	if !dryRun {
-		fmt.Printf("✓ Successfully renamed branch %s -> %s\n", oldName, newName)
+		fmt.Println(ui.Success(fmt.Sprintf("Successfully renamed branch %s -> %s", ui.Branch(oldName), ui.Branch(newName))))
 		fmt.Println()
 
 		// Show the updated stack (local only, fast)

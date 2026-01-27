@@ -6,6 +6,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -77,7 +78,7 @@ func runNew(gitClient git.GitClient, branchName string, explicitParent string) e
 		}
 	}
 
-	fmt.Printf("Creating new branch %s from %s\n", branchName, parent)
+	fmt.Printf("Creating new branch %s from %s\n", ui.Branch(branchName), ui.Branch(parent))
 
 	// Create the new branch
 	if err := gitClient.CreateBranchAndCheckout(branchName, parent); err != nil {
@@ -91,7 +92,7 @@ func runNew(gitClient git.GitClient, branchName string, explicitParent string) e
 	}
 
 	if !dryRun {
-		fmt.Printf("✓ Created branch %s with parent %s\n", branchName, parent)
+		fmt.Println(ui.Success(fmt.Sprintf("Created branch %s with parent %s", ui.Branch(branchName), ui.Branch(parent))))
 		fmt.Println()
 
 		// Show the local stack (fast, no PR fetching)

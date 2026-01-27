@@ -6,6 +6,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -56,7 +57,7 @@ func runReparent(gitClient git.GitClient, githubClient github.GitHubClient, newP
 
 	// Check if new parent is the same as current parent
 	if currentParent != "" && newParent == currentParent {
-		fmt.Printf("Branch %s is already parented to %s\n", currentBranch, newParent)
+		fmt.Printf("Branch %s is already parented to %s\n", ui.Branch(currentBranch), ui.Branch(newParent))
 		return nil
 	}
 
@@ -77,9 +78,9 @@ func runReparent(gitClient git.GitClient, githubClient github.GitHubClient, newP
 
 	// Print appropriate message based on whether we're adding to stack or reparenting
 	if currentParent == "" {
-		fmt.Printf("Adding %s to stack with parent %s\n", currentBranch, newParent)
+		fmt.Printf("Adding %s to stack with parent %s\n", ui.Branch(currentBranch), ui.Branch(newParent))
 	} else {
-		fmt.Printf("Reparenting %s: %s -> %s\n", currentBranch, currentParent, newParent)
+		fmt.Printf("Reparenting %s: %s -> %s\n", ui.Branch(currentBranch), ui.Branch(currentParent), ui.Branch(newParent))
 	}
 
 	// Update git config
@@ -92,29 +93,29 @@ func runReparent(gitClient git.GitClient, githubClient github.GitHubClient, newP
 	pr, err := githubClient.GetPRForBranch(currentBranch)
 	if err != nil {
 		// Error fetching PR info, but config was updated successfully
-		fmt.Printf("✓ Updated parent to %s\n", newParent)
+		fmt.Println(ui.Success(fmt.Sprintf("Updated parent to %s", ui.Branch(newParent))))
 		fmt.Printf("Warning: failed to check for PR: %v\n", err)
 		return nil
 	}
 
 	if pr != nil {
 		// PR exists, update its base
-		fmt.Printf("Updating PR #%d base: %s -> %s\n", pr.Number, pr.Base, newParent)
+		fmt.Printf("Updating PR #%d base: %s -> %s\n", pr.Number, ui.Branch(pr.Base), ui.Branch(newParent))
 
 		if err := githubClient.UpdatePRBase(pr.Number, newParent); err != nil {
 			// Config was updated but PR base update failed
-			fmt.Printf("✓ Updated parent to %s\n", newParent)
+			fmt.Println(ui.Success(fmt.Sprintf("Updated parent to %s", ui.Branch(newParent))))
 			return fmt.Errorf("failed to update PR base: %w", err)
 		}
 
 		if !dryRun {
-			fmt.Printf("✓ Updated parent to %s\n", newParent)
-			fmt.Printf("✓ Updated PR #%d base to %s\n", pr.Number, newParent)
+			fmt.Println(ui.Success(fmt.Sprintf("Updated parent to %s", ui.Branch(newParent))))
+			fmt.Println(ui.Success(fmt.Sprintf("Updated PR #%d base to %s", pr.Number, ui.Branch(newParent))))
 		}
 	} else {
 		// No PR exists
 		if !dryRun {
-			fmt.Printf("✓ Updated parent to %s\n", newParent)
+			fmt.Println(ui.Success(fmt.Sprintf("Updated parent to %s", ui.Branch(newParent))))
 			fmt.Println("  (no PR found for this branch)")
 		}
 	}
