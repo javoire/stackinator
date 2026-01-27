@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/javoire/stackinator/internal/git"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -38,9 +39,9 @@ func runParent(gitClient git.GitClient) error {
 	parent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", currentBranch))
 
 	if parent == "" {
-		fmt.Printf("%s (not in a stack)\n", currentBranch)
+		fmt.Printf("%s %s\n", ui.Branch(currentBranch), ui.Dim("(not in a stack)"))
 	} else {
-		fmt.Println(parent)
+		fmt.Println(ui.Branch(parent))
 	}
 
 	return nil

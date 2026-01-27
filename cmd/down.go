@@ -9,6 +9,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -57,9 +58,9 @@ func runDown(gitClient git.GitClient) error {
 		targetBranch = children[0].Name
 	} else {
 		// Multiple children, prompt for selection
-		fmt.Printf("Multiple children found for %s:\n", currentBranch)
+		fmt.Printf("Multiple children found for %s:\n", ui.Branch(currentBranch))
 		for i, child := range children {
-			fmt.Printf("  %d) %s\n", i+1, child.Name)
+			fmt.Printf("  %d) %s\n", i+1, ui.Branch(child.Name))
 		}
 		fmt.Print("\nSelect branch (1-" + strconv.Itoa(len(children)) + "): ")
 
@@ -83,6 +84,6 @@ func runDown(gitClient git.GitClient) error {
 		return fmt.Errorf("failed to checkout child branch %s: %w", targetBranch, err)
 	}
 
-	fmt.Printf("Switched to child branch: %s\n", targetBranch)
+	fmt.Printf("Switched to child branch: %s\n", ui.Branch(targetBranch))
 	return nil
 }

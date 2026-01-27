@@ -6,6 +6,7 @@ import (
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -49,8 +50,8 @@ func runShow(gitClient git.GitClient) error {
 
 	if len(stackBranches) == 0 {
 		fmt.Println("No stack branches found.")
-		fmt.Printf("Current branch: %s\n", currentBranch)
-		fmt.Println("\nUse 'stack new <branch-name>' to create a new stack branch.")
+		fmt.Printf("Current branch: %s\n", ui.Branch(currentBranch))
+		fmt.Printf("\nUse '%s' to create a new stack branch.\n", ui.Command("stack new <branch-name>"))
 		return nil
 	}
 
@@ -75,16 +76,16 @@ func printLocalStackTree(node *stack.TreeNode, currentBranch string, isPipe bool
 
 	marker := ""
 	if node.Name == currentBranch {
-		marker = " *"
+		marker = ui.CurrentBranchMarker()
 	}
 
 	// Print pipe if needed
 	if isPipe {
-		fmt.Println("  |")
+		fmt.Printf("  %s\n", ui.Pipe())
 	}
 
 	// Print current node (no PR info)
-	fmt.Printf(" %s%s\n", node.Name, marker)
+	fmt.Printf(" %s%s\n", ui.Branch(node.Name), marker)
 
 	// Print children vertically
 	for _, child := range node.Children {

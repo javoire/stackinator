@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/javoire/stackinator/internal/git"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +47,6 @@ func runUp(gitClient git.GitClient) error {
 		return fmt.Errorf("failed to checkout parent branch %s: %w", parent, err)
 	}
 
-	fmt.Printf("Switched to parent branch: %s\n", parent)
+	fmt.Printf("Switched to parent branch: %s\n", ui.Branch(parent))
 	return nil
 }

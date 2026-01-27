@@ -13,6 +13,7 @@ import (
 	"github.com/javoire/stackinator/internal/github"
 	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
+	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -120,7 +121,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			if err := gitClient.AbortCherryPick(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to abort cherry-pick: %v\n", err)
 			} else {
-				fmt.Println("✓ Aborted cherry-pick")
+				fmt.Println(ui.Success("Aborted cherry-pick"))
 			}
 		} else if git.Verbose {
 			fmt.Fprintf(os.Stderr, "Note: no cherry-pick in progress\n")
@@ -131,7 +132,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			if err := gitClient.AbortRebase(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to abort rebase: %v\n", err)
 			} else {
-				fmt.Println("✓ Aborted rebase")
+				fmt.Println(ui.Success("Aborted rebase"))
 			}
 		} else if git.Verbose {
 			fmt.Fprintf(os.Stderr, "Note: no rebase in progress\n")
@@ -142,9 +143,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			fmt.Println("Restoring stashed changes...")
 			if err := gitClient.StashPop(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", err)
-				fmt.Fprintf(os.Stderr, "Run 'git stash pop' manually to restore your changes\n")
+				fmt.Fprintf(os.Stderr, "Run '%s' manually to restore your changes\n", ui.Command("git stash pop"))
 			} else {
-				fmt.Println("✓ Restored stashed changes")
+				fmt.Println(ui.Success("Restored stashed changes"))
 			}
 		}
 
@@ -152,11 +153,11 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if savedOriginalBranch != "" {
 			currentBranch, err := gitClient.GetCurrentBranch()
 			if err == nil && currentBranch != savedOriginalBranch {
-				fmt.Printf("Returning to %s...\n", savedOriginalBranch)
+				fmt.Printf("Returning to %s...\n", ui.Branch(savedOriginalBranch))
 				if err := gitClient.CheckoutBranch(savedOriginalBranch); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
 				} else {
-					fmt.Printf("✓ Returned to %s\n", savedOriginalBranch)
+					fmt.Println(ui.Success(fmt.Sprintf("Returned to %s", ui.Branch(savedOriginalBranch))))
 				}
 			}
 		}
@@ -166,7 +167,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		_ = gitClient.UnsetConfig(configSyncOriginalBranch)
 
 		fmt.Println()
-		fmt.Println("✓ Sync aborted and state cleaned up")
+		fmt.Println(ui.Success("Sync aborted and state cleaned up"))
 		return nil
 	}
 
@@ -263,8 +264,8 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	parent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", originalBranch))
 
 	if parent == "" && originalBranch != baseBranch {
-		fmt.Printf("Branch '%s' is not in a stack.\n", originalBranch)
-		fmt.Printf("Add it with parent '%s'? [Y/n] ", baseBranch)
+		fmt.Printf("Branch '%s' is not in a stack.\n", ui.Branch(originalBranch))
+		fmt.Printf("Add it with parent '%s'? [Y/n] ", ui.Branch(baseBranch))
 
 		reader := bufio.NewReader(stdinReader)
 		input, err := reader.ReadString('\n')
@@ -283,7 +284,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		if err := gitClient.SetConfig(configKey, baseBranch); err != nil {
 			return fmt.Errorf("failed to set parent: %w", err)
 		}
-		fmt.Printf("✓ Added '%s' to stack with parent '%s'\n", originalBranch, baseBranch)
+		fmt.Println(ui.Success(fmt.Sprintf("Added '%s' to stack with parent '%s'", ui.Branch(originalBranch), ui.Branch(baseBranch))))
 	}
 
 	// Start parallel fetch operations (git fetch and GitHub PR fetch)
@@ -468,23 +469,23 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 	// Process each branch
 	for i, branch := range sorted {
-		progress := fmt.Sprintf("(%d/%d)", i+1, len(sorted))
+		progress := ui.Progress(i+1, len(sorted))
 
 		// Check if this branch has a merged PR - if so, remove from stack tracking
 		if pr, exists := prCache[branch.Name]; exists && pr.State == "MERGED" {
-			fmt.Printf("%s Skipping %s (PR #%d is merged)...\n", progress, branch.Name, pr.Number)
+			fmt.Printf("%s Skipping %s (PR #%d is %s)...\n", progress, ui.Branch(branch.Name), pr.Number, ui.PRState(pr.State))
 			fmt.Printf("  Removing from stack tracking...\n")
 			configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
 			if err := gitClient.UnsetConfig(configKey); err != nil {
 				fmt.Fprintf(os.Stderr, "  Warning: failed to remove stack config: %v\n", err)
 			} else {
-				fmt.Printf("  ✓ Removed. You can delete this branch with: git branch -d %s\n", branch.Name)
+				fmt.Printf("  %s Removed. You can delete this branch with: %s\n", ui.SuccessIcon(), ui.Command(fmt.Sprintf("git branch -d %s", branch.Name)))
 			}
 			fmt.Println()
 			continue
 		}
 
-		fmt.Printf("%s Processing %s...\n", progress, branch.Name)
+		fmt.Printf("%s Processing %s...\n", progress, ui.Branch(branch.Name))
 
 		// Check if parent PR is merged
 		oldParent := "" // Track old parent for --onto rebase
@@ -501,7 +502,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 				grandparent = stack.GetBaseBranch(gitClient)
 			}
 
-			fmt.Printf("  ✓ Updated parent from %s to %s\n", branch.Parent, grandparent)
+			fmt.Printf("  %s Updated parent from %s to %s\n", ui.SuccessIcon(), ui.Branch(branch.Parent), ui.Branch(grandparent))
 			configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
 			if err := gitClient.SetConfig(configKey, grandparent); err != nil {
 				fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
@@ -731,8 +732,8 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 							return fmt.Errorf("failed to restore stackparent config: %w", err)
 						}
 
-						fmt.Printf("  ✓ Rebuilt %s (backup saved as %s)\n", branch.Name, backupBranch)
-						fmt.Printf("  To delete backup later: git branch -D %s\n", backupBranch)
+						fmt.Printf("  %s Rebuilt %s (backup saved as %s)\n", ui.SuccessIcon(), ui.Branch(branch.Name), ui.Branch(backupBranch))
+						fmt.Printf("  To delete backup later: %s\n", ui.Command(fmt.Sprintf("git branch -D %s", backupBranch)))
 
 						// Branch is now clean - no need to rebase, just return nil
 						return nil
@@ -847,24 +848,24 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		pr := prCache[branch.Name]
 		if pr != nil {
 			if pr.Base != branch.Parent {
-				fmt.Printf("  Updating PR #%d base from %s to %s...\n", pr.Number, pr.Base, branch.Parent)
+				fmt.Printf("  Updating PR #%d base from %s to %s...\n", pr.Number, ui.Branch(pr.Base), ui.Branch(branch.Parent))
 				if err := githubClient.UpdatePRBase(pr.Number, branch.Parent); err != nil {
 					fmt.Fprintf(os.Stderr, "  Warning: failed to update PR base: %v\n", err)
 				} else {
-					fmt.Printf("  ✓ PR #%d updated\n", pr.Number)
+					fmt.Printf("  %s PR #%d updated\n", ui.SuccessIcon(), pr.Number)
 				}
 			} else {
-				fmt.Printf("  ✓ PR #%d base is already correct (%s)\n", pr.Number, pr.Base)
+				fmt.Printf("  %s PR #%d base is already correct (%s)\n", ui.SuccessIcon(), pr.Number, ui.Branch(pr.Base))
 			}
 		} else {
-			fmt.Printf("  No PR found (create one with 'gh pr create')\n")
+			fmt.Printf("  No PR found (create one with '%s')\n", ui.Command("gh pr create"))
 		}
 
 		fmt.Println()
 	}
 
 	// Return to original branch
-	fmt.Printf("Returning to %s...\n", originalBranch)
+	fmt.Printf("Returning to %s...\n", ui.Branch(originalBranch))
 	if err := gitClient.CheckoutBranch(originalBranch); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
 	}
@@ -895,7 +896,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	_ = gitClient.UnsetConfig(configSyncOriginalBranch)
 
 	fmt.Println()
-	fmt.Println("✓ Sync complete!")
+	fmt.Println(ui.Success("Sync complete!"))
 
 	return nil
 }
@@ -970,24 +971,24 @@ func printTreeVerticalForSync(gitClient git.GitClient, node *stack.TreeNode, cur
 	// Determine the current branch marker
 	marker := ""
 	if node.Name == currentBranch {
-		marker = " *"
+		marker = ui.CurrentBranchMarker()
 	}
 
 	// Get PR info from cache
 	prInfo := ""
 	if node.Name != stack.GetBaseBranch(gitClient) {
 		if pr, exists := prCache[node.Name]; exists {
-			prInfo = fmt.Sprintf(" [%s :%s]", pr.URL, strings.ToLower(pr.State))
+			prInfo = fmt.Sprintf(" %s", ui.PRInfo(pr.URL, pr.State))
 		}
 	}
 
 	// Print pipe if needed
 	if isPipe {
-		fmt.Println("  |")
+		fmt.Printf("  %s\n", ui.Pipe())
 	}
 
 	// Print current node
-	fmt.Printf(" %s%s%s\n", node.Name, prInfo, marker)
+	fmt.Printf(" %s%s%s\n", ui.Branch(node.Name), prInfo, marker)
 
 	// Print children vertically
 	for _, child := range node.Children {
