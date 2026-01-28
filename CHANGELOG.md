@@ -1,3 +1,9 @@
+## [1.9.1](https://github.com/javoire/stackinator/compare/v1.9.0...v1.9.1) (2026-01-28)
+
+### Bug Fixes
+
+* don't suggest stacking base branch onto itself ([#51](https://github.com/javoire/stackinator/issues/51)) ([a13268d](https://github.com/javoire/stackinator/commit/a13268d89b443da3df630262113eff934434c8a2))
+
 ## [1.9.0](https://github.com/javoire/stackinator/compare/v1.8.1...v1.9.0) (2026-01-28)
 
 ### Features
