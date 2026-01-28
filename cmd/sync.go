@@ -459,8 +459,6 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Get all remote branches in one call (more efficient than checking each branch individually)
 	remoteBranches := gitClient.GetRemoteBranchesSet()
 
-	fmt.Printf("Processing %d branch(es)...\n\n", len(sorted))
-
 	// Build a set of stack branch names for quick lookup
 	stackBranchSet := make(map[string]bool)
 	for _, sb := range stackBranches {
@@ -965,15 +963,15 @@ func printTreeForSync(gitClient git.GitClient, node *stack.TreeNode, currentBran
 	printTreeVerticalForSync(gitClient, node, currentBranch, prCache, false)
 }
 
-func printTreeVerticalForSync(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+func printTreeVerticalForSync(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isChild bool) {
 	if node == nil {
 		return
 	}
 
-	// Determine the current branch marker
-	marker := ""
+	// Determine the node marker (filled for current branch, hollow for others)
+	nodeMarker := ui.TreeNode()
 	if node.Name == currentBranch {
-		marker = ui.CurrentBranchMarker()
+		nodeMarker = ui.TreeNodeCurrent()
 	}
 
 	// Get PR info from cache
@@ -984,13 +982,13 @@ func printTreeVerticalForSync(gitClient git.GitClient, node *stack.TreeNode, cur
 		}
 	}
 
-	// Print pipe if needed
-	if isPipe {
-		fmt.Printf("  %s\n", ui.Pipe())
+	// Print connecting line if this is a child node
+	if isChild {
+		fmt.Printf("%s\n", ui.TreeLine())
 	}
 
 	// Print current node
-	fmt.Printf(" %s%s%s\n", ui.Branch(node.Name), prInfo, marker)
+	fmt.Printf("%s %s%s\n", nodeMarker, ui.Branch(node.Name), prInfo)
 
 	// Print children vertically
 	for _, child := range node.Children {

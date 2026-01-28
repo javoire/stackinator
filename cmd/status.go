@@ -284,15 +284,15 @@ func printTree(gitClient git.GitClient, node *stack.TreeNode, prefix string, isL
 	printTreeVertical(gitClient, node, currentBranch, prCache, false)
 }
 
-func printTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isPipe bool) {
+func printTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBranch string, prCache map[string]*github.PRInfo, isChild bool) {
 	if node == nil {
 		return
 	}
 
-	// Determine the current branch marker
-	marker := ""
+	// Determine the node marker (filled for current branch, hollow for others)
+	nodeMarker := ui.TreeNode()
 	if node.Name == currentBranch {
-		marker = ui.CurrentBranchMarker()
+		nodeMarker = ui.TreeNodeCurrent()
 	}
 
 	// Get PR info from cache
@@ -303,13 +303,13 @@ func printTreeVertical(gitClient git.GitClient, node *stack.TreeNode, currentBra
 		}
 	}
 
-	// Print pipe if needed
-	if isPipe {
-		fmt.Printf("  %s\n", ui.Pipe())
+	// Print connecting line if this is a child node
+	if isChild {
+		fmt.Printf("%s\n", ui.TreeLine())
 	}
 
 	// Print current node
-	fmt.Printf(" %s%s%s\n", ui.Branch(node.Name), prInfo, marker)
+	fmt.Printf("%s %s%s\n", nodeMarker, ui.Branch(node.Name), prInfo)
 
 	// Print children vertically
 	for _, child := range node.Children {

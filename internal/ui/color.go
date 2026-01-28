@@ -82,6 +82,21 @@ func Pipe() string {
 	return dim.Sprint("|")
 }
 
+// TreeNodeCurrent returns the filled circle for current branch (bold green)
+func TreeNodeCurrent() string {
+	return boldGreen.Sprint("●")
+}
+
+// TreeNode returns the hollow circle for non-current branches (dim)
+func TreeNode() string {
+	return dim.Sprint("○")
+}
+
+// TreeLine returns the vertical line for connecting branches (dim)
+func TreeLine() string {
+	return dim.Sprint("│")
+}
+
 // SuccessIcon returns just the green checkmark
 func SuccessIcon() string {
 	return green.Sprint("✓")
