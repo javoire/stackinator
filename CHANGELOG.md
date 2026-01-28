@@ -1,3 +1,9 @@
+## [1.9.0](https://github.com/javoire/stackinator/compare/v1.8.1...v1.9.0) (2026-01-28)
+
+### Features
+
+* display status messages in gray/dim color ([#50](https://github.com/javoire/stackinator/issues/50)) ([8413f79](https://github.com/javoire/stackinator/commit/8413f7974f64d70ec94c6955f6e687becb0a28dd))
+
 ## [1.8.1](https://github.com/javoire/stackinator/compare/v1.8.0...v1.8.1) (2026-01-27)
 
 ### Bug Fixes
