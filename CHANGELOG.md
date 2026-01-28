@@ -1,3 +1,9 @@
+## [1.10.1](https://github.com/javoire/stackinator/compare/v1.10.0...v1.10.1) (2026-01-28)
+
+### Bug Fixes
+
+* apply consistent colors to status warning messages ([#53](https://github.com/javoire/stackinator/issues/53)) ([25d3ab6](https://github.com/javoire/stackinator/commit/25d3ab6e9e2381bb44d7afedb58545474627443f))
+
 ## [1.10.0](https://github.com/javoire/stackinator/compare/v1.9.1...v1.10.0) (2026-01-28)
 
 ### Features
