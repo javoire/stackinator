@@ -62,9 +62,9 @@ func ErrorText(msg string) string {
 	return red.Sprint(msg)
 }
 
-// Command returns a command in cyan (for help text)
+// Command returns a command in green (for help text)
 func Command(cmd string) string {
-	return cyan.Sprint(cmd)
+	return green.Sprint(cmd)
 }
 
 // Dim returns dimmed/gray text
