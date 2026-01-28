@@ -143,6 +143,14 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 	// Check this BEFORE waiting for PR fetch to avoid long delays
 	if tree == nil {
 		baseBranch := stack.GetBaseBranch(gitClient)
+
+		// Don't offer to add the base branch to a stack - it can't have a parent
+		if currentBranch == baseBranch {
+			fmt.Printf("Branch '%s' is the base branch and cannot be part of a stack.\n", ui.Branch(currentBranch))
+			fmt.Printf("\nUse '%s' to create a new stack branch.\n", ui.Command("stack new <branch-name>"))
+			return nil
+		}
+
 		fmt.Printf("Current branch '%s' is not part of a stack.\n\n", ui.Branch(currentBranch))
 		fmt.Printf("Add to stack with '%s' as parent? [Y/n] ", ui.Branch(baseBranch))
 
