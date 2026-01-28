@@ -1,3 +1,9 @@
+## [1.10.0](https://github.com/javoire/stackinator/compare/v1.9.1...v1.10.0) (2026-01-28)
+
+### Features
+
+* improve status command UX ([#52](https://github.com/javoire/stackinator/issues/52)) ([374703a](https://github.com/javoire/stackinator/commit/374703a262c6684ba8e85b0e22baa99b1d2b9d44))
+
 ## [1.9.1](https://github.com/javoire/stackinator/compare/v1.9.0...v1.9.1) (2026-01-28)
 
 ### Bug Fixes
