@@ -366,7 +366,7 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 				if verbose {
 					fmt.Printf("  ✗ PR base (%s) doesn't match configured parent (%s)\n", pr.Base, branch.Parent)
 				}
-				issues = append(issues, fmt.Sprintf("  - Branch '%s' PR base (%s) doesn't match parent (%s)", branch.Name, pr.Base, branch.Parent))
+				issues = append(issues, fmt.Sprintf("  - Branch '%s' PR base (%s) doesn't match parent (%s)", ui.Branch(branch.Name), ui.Branch(pr.Base), ui.Branch(branch.Parent)))
 			} else if verbose {
 				fmt.Printf("  ✓ PR base matches configured parent\n")
 			}
@@ -383,7 +383,7 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 			if verbose {
 				fmt.Printf("  ✗ Branch is behind %s (needs rebase)\n", branch.Parent)
 			}
-			issues = append(issues, fmt.Sprintf("  - Branch '%s' is behind %s (needs rebase)", branch.Name, branch.Parent))
+			issues = append(issues, fmt.Sprintf("  - Branch '%s' is behind %s (needs rebase)", ui.Branch(branch.Name), ui.Branch(branch.Parent)))
 		} else if err == nil && verbose {
 			fmt.Printf("  ✓ Branch is up to date with %s\n", branch.Parent)
 		} else if err != nil && verbose {
@@ -401,7 +401,7 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 				if verbose {
 					fmt.Printf("  ✗ Local branch differs from origin/%s (needs push)\n", branch.Name)
 				}
-				issues = append(issues, fmt.Sprintf("  - Branch '%s' differs from origin (needs push)", branch.Name))
+				issues = append(issues, fmt.Sprintf("  - Branch '%s' differs from origin (needs push)", ui.Branch(branch.Name)))
 			} else if localErr == nil && remoteErr == nil && verbose {
 				fmt.Printf("  ✓ Local branch matches origin/%s\n", branch.Name)
 			} else if verbose {
