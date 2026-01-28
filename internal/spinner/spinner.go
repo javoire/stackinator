@@ -110,7 +110,7 @@ func (s *Spinner) run() {
 		case <-ticker.C:
 			s.mu.Lock()
 			frame := s.frames[frameIdx%len(s.frames)]
-			fmt.Fprintf(s.writer, "\r%s %s", frame, s.message)
+			fmt.Fprintf(s.writer, "\r%s %s", frame, dim.Sprint(s.message))
 			s.mu.Unlock()
 			frameIdx++
 		}
@@ -133,13 +133,14 @@ func Wrap(message string, fn func() error) error {
 var (
 	green = color.New(color.FgGreen)
 	red   = color.New(color.FgRed)
+	dim   = color.New(color.Faint)
 )
 
 // WrapWithSuccess runs a function with a spinner and shows success/error message
 func WrapWithSuccess(message, successMessage string, fn func() error) error {
 	if !Enabled {
 		// When disabled (verbose mode), print message and run
-		fmt.Println(message)
+		fmt.Println(dim.Sprint(message))
 		err := fn()
 		if err != nil {
 			fmt.Printf("%s Error: %v\n", red.Sprint("✗"), err)
@@ -160,7 +161,7 @@ func WrapWithSuccess(message, successMessage string, fn func() error) error {
 func WrapWithSuccessIndented(indent, message, successMessage string, fn func() error) error {
 	if !Enabled {
 		// When disabled (verbose mode), print message and run
-		fmt.Println(indent + message)
+		fmt.Println(indent + dim.Sprint(message))
 		err := fn()
 		if err != nil {
 			fmt.Printf("%s%s Error: %v\n", indent, red.Sprint("✗"), err)
