@@ -93,7 +93,7 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 		prCache = make(map[string]*github.PRInfo)
 	}
 
-	// Build the stack tree (runs in parallel with PR fetch)
+	// Build the stack tree AND wait for PR fetch (runs in parallel)
 	if err := spinner.WrapWithAutoDelay("Loading stack...", 300*time.Millisecond, func() error {
 		// Get current branch
 		var err error
@@ -125,6 +125,45 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 
 		// Get ALL branch names in the tree (including intermediate branches without stackparent)
 		allTreeBranches = getAllBranchNamesFromTree(tree)
+
+		// Wait for PR fetch to complete (if running)
+		if !noPR {
+			wg.Wait()
+
+			// GetAllPRs only fetches open PRs (to avoid 502 timeouts on large repos).
+			// For branches in our stack that aren't in the cache, check individually
+			// to detect merged PRs that need special handling.
+			// OPTIMIZATION: Only check branches in the current tree, not all stack branches.
+			branchSet := make(map[string]bool)
+			for _, name := range allTreeBranches {
+				branchSet[name] = true
+			}
+			baseBranch := stack.GetBaseBranch(gitClient)
+
+			for _, branch := range stackBranches {
+				// Skip branches not in the current tree
+				if !branchSet[branch.Name] {
+					continue
+				}
+				// Skip if already in cache (has open PR)
+				if _, exists := prCache[branch.Name]; exists {
+					continue
+				}
+				// Fetch PR info for this branch (might be merged or non-existent)
+				if pr, err := githubClient.GetPRForBranch(branch.Name); err == nil && pr != nil {
+					prCache[branch.Name] = pr
+				}
+				// Also check parent if not in cache and not base branch
+				if branch.Parent != baseBranch {
+					if _, exists := prCache[branch.Parent]; !exists {
+						if pr, err := githubClient.GetPRForBranch(branch.Parent); err == nil && pr != nil {
+							prCache[branch.Parent] = pr
+						}
+					}
+				}
+			}
+		}
+
 		return nil
 	}); err != nil {
 		return err
@@ -173,33 +212,6 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 			return runStatus(gitClient, githubClient)
 		}
 		return nil
-	}
-
-	// Wait for PR fetch to complete (if running)
-	if !noPR {
-		wg.Wait()
-
-		// GetAllPRs only fetches open PRs (to avoid 502 timeouts on large repos).
-		// For branches in our stack that aren't in the cache, check individually
-		// to detect merged PRs that need special handling.
-		for _, branch := range stackBranches {
-			// Skip if already in cache (has open PR)
-			if _, exists := prCache[branch.Name]; exists {
-				continue
-			}
-			// Fetch PR info for this branch (might be merged or non-existent)
-			if pr, err := githubClient.GetPRForBranch(branch.Name); err == nil && pr != nil {
-				prCache[branch.Name] = pr
-			}
-			// Also check parent if not in cache and not base branch
-			if branch.Parent != stack.GetBaseBranch(gitClient) {
-				if _, exists := prCache[branch.Parent]; !exists {
-					if pr, err := githubClient.GetPRForBranch(branch.Parent); err == nil && pr != nil {
-						prCache[branch.Parent] = pr
-					}
-				}
-			}
-		}
 	}
 
 	// Print the tree
