@@ -1,3 +1,9 @@
+## [1.11.0](https://github.com/javoire/stackinator/compare/v1.10.1...v1.11.0) (2026-01-29)
+
+### Features
+
+* use dots-style tree display for stack visualization ([#55](https://github.com/javoire/stackinator/issues/55)) ([13ef1e6](https://github.com/javoire/stackinator/commit/13ef1e683cb04bd19dacbe404b4eb33f95ccd2ab))
+
 ## [1.10.1](https://github.com/javoire/stackinator/compare/v1.10.0...v1.10.1) (2026-01-28)
 
 ### Bug Fixes
