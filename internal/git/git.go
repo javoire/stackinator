@@ -58,6 +58,20 @@ func (c *gitClient) GetRepoRoot() (string, error) {
 	return c.runCmd("rev-parse", "--show-toplevel")
 }
 
+// GetRepoName returns the name of the git repository (directory name)
+func (c *gitClient) GetRepoName() (string, error) {
+	repoRoot, err := c.GetRepoRoot()
+	if err != nil {
+		return "", err
+	}
+	// Extract the last component of the path (the directory name)
+	parts := strings.Split(repoRoot, "/")
+	if len(parts) == 0 {
+		return "", fmt.Errorf("invalid repo root path: %s", repoRoot)
+	}
+	return parts[len(parts)-1], nil
+}
+
 // GetCurrentBranch returns the name of the currently checked out branch
 func (c *gitClient) GetCurrentBranch() (string, error) {
 	return c.runCmd("branch", "--show-current")
