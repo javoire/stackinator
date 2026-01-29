@@ -21,6 +21,7 @@ type GitClient interface {
 	ForcePush(branch string) error
 	IsWorkingTreeClean() (bool, error)
 	Fetch() error
+	FastForwardToRemote(branch string) error
 	BranchExists(name string) bool
 	RemoteBranchExists(name string) bool
 	GetRemoteBranchesSet() map[string]bool
