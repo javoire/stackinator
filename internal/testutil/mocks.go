@@ -105,6 +105,11 @@ func (m *MockGitClient) Fetch() error {
 	return args.Error(0)
 }
 
+func (m *MockGitClient) FastForwardToRemote(branch string) error {
+	args := m.Called(branch)
+	return args.Error(0)
+}
+
 func (m *MockGitClient) BranchExists(name string) bool {
 	args := m.Called(name)
 	return args.Bool(0)

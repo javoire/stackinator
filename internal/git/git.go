@@ -273,6 +273,17 @@ func (c *gitClient) Fetch() error {
 	return err
 }
 
+// FastForwardToRemote fast-forwards the current branch to match origin/<branch>
+func (c *gitClient) FastForwardToRemote(branch string) error {
+	remoteBranch := "origin/" + branch
+	if DryRun {
+		fmt.Printf("  [DRY RUN] git merge --ff-only %s\n", remoteBranch)
+		return nil
+	}
+	_, err := c.runCmd("merge", "--ff-only", remoteBranch)
+	return err
+}
+
 // BranchExists checks if a branch exists locally
 func (c *gitClient) BranchExists(name string) bool {
 	output := c.runCmdMayFail("rev-parse", "--verify", "refs/heads/"+name)

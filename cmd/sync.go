@@ -314,7 +314,17 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	if len(chain) == 0 {
 		// Wait for parallel operations before returning
 		wg.Wait()
+		if fetchErr != nil {
+			return fmt.Errorf("failed to fetch: %w", fetchErr)
+		}
 		fmt.Println("No stack branches found.")
+		if originalBranch == baseBranch {
+			fmt.Printf("Updating %s from origin...\n", ui.Branch(baseBranch))
+			if err := gitClient.FastForwardToRemote(baseBranch); err != nil {
+				return fmt.Errorf("failed to update %s: %w", baseBranch, err)
+			}
+			fmt.Println(ui.Success(fmt.Sprintf("Updated %s", ui.Branch(baseBranch))))
+		}
 		return nil
 	}
 
