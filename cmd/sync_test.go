@@ -494,6 +494,7 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 	// These are started but may not complete before early return
 	mockGit.On("Fetch").Return(nil).Maybe()
 	mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil).Maybe()
+	mockGit.On("FastForwardToRemote", "main").Return(nil).Maybe()
 
 	// These calls don't happen when there are no stack branches (early return)
 
