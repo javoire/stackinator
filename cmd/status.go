@@ -185,7 +185,7 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 
 		// Don't offer to add the base branch to a stack - it can't have a parent
 		if currentBranch == baseBranch {
-			fmt.Printf("Branch '%s' is the base branch and cannot be part of a stack.\n", ui.Branch(currentBranch))
+			fmt.Printf("No stack found. You're on the base branch (%s).\n", ui.Branch(currentBranch))
 			fmt.Printf("\nUse '%s' to create a new stack branch.\n", ui.Command("stack new <branch-name>"))
 			return nil
 		}
