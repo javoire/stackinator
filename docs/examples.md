@@ -23,13 +23,13 @@ stack new auth-logout
 # View structure
 stack status
 # Output:
-#  main
-#   |
-#  auth-system [https://github.com/you/repo/pull/10 :merged]
-#   |
-#  auth-login [https://github.com/you/repo/pull/11 :open]
-#   |
-#  auth-logout [https://github.com/you/repo/pull/12 :open] *
+# ○ main
+# │
+# ○ auth-system [https://github.com/you/repo/pull/10 :merged]
+# │
+# ○ auth-login [https://github.com/you/repo/pull/11 :open]
+# │
+# ● auth-logout [https://github.com/you/repo/pull/12 :open]
 
 # Later, after making changes or when main updates
 stack sync
