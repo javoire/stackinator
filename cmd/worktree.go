@@ -14,6 +14,8 @@ import (
 )
 
 var worktreePrune bool
+var worktreePruneAll bool
+var worktreeList bool
 
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree <branch-name> [base-branch]",
@@ -23,7 +25,9 @@ var worktreeCmd = &cobra.Command{
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
 (or from base-branch if specified) and stack tracking will be set up automatically.
-Use --prune to clean up worktrees for branches with merged PRs.`,
+Use --list to show worktrees for this repository, or --list --all for all repos.
+Use --prune to clean up worktrees for branches with merged PRs.
+Use --prune --all to remove all worktrees for this repository.`,
 	Example: `  # Create worktree for new branch (from current branch, with stack tracking)
   stack worktree my-feature
 
@@ -33,12 +37,27 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
   # Create worktree for existing local or remote branch
   stack worktree existing-branch
 
+  # List worktrees for this repository
+  stack worktree --list
+
+  # List worktrees for all repositories
+  stack worktree --list --all
+
   # Clean up worktrees for merged branches
   stack worktree --prune
+
+  # Remove all worktrees for this repository
+  stack worktree --prune --all
 
   # Preview without executing
   stack worktree my-feature --dry-run`,
 	Args: func(cmd *cobra.Command, args []string) error {
+		if worktreeList {
+			if len(args) > 0 {
+				return fmt.Errorf("--list does not take arguments")
+			}
+			return nil
+		}
 		if worktreePrune {
 			if len(args) > 0 {
 				return fmt.Errorf("--prune does not take a branch argument")
@@ -56,7 +75,9 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 		githubClient := github.NewGitHubClient(repo)
 
 		var err error
-		if worktreePrune {
+		if worktreeList {
+			err = runWorktreeList(gitClient)
+		} else if worktreePrune {
 			err = runWorktreePrune(gitClient, githubClient)
 		} else {
 			var baseBranch string
@@ -73,7 +94,9 @@ Use --prune to clean up worktrees for branches with merged PRs.`,
 }
 
 func init() {
+	worktreeCmd.Flags().BoolVarP(&worktreeList, "list", "l", false, "List all worktrees for this repository")
 	worktreeCmd.Flags().BoolVar(&worktreePrune, "prune", false, "Remove worktrees for branches with merged PRs")
+	worktreeCmd.Flags().BoolVarP(&worktreePruneAll, "all", "a", false, "With --list: show all repos. With --prune: remove all worktrees")
 }
 
 func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, branchName, baseBranch string) error {
@@ -104,6 +127,126 @@ func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, bran
 
 	// Check if branch exists locally or on remote
 	return createWorktreeForExisting(gitClient, branchName, worktreePath)
+}
+
+func runWorktreeList(gitClient git.GitClient) error {
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	worktreesBaseDir := filepath.Join(homeDir, ".stack", "worktrees")
+
+	// Check if ~/.stack/worktrees directory exists
+	if _, err := os.Stat(worktreesBaseDir); os.IsNotExist(err) {
+		fmt.Printf("No worktrees found in %s\n", worktreesBaseDir)
+		return nil
+	}
+
+	if worktreePruneAll {
+		// List worktrees for all repositories
+		return listAllWorktrees(worktreesBaseDir)
+	}
+
+	// List worktrees for current repository only
+	repoName, err := gitClient.GetRepoName()
+	if err != nil {
+		return fmt.Errorf("failed to get repo name: %w", err)
+	}
+
+	worktreesDir := filepath.Join(worktreesBaseDir, repoName)
+
+	// Check if ~/.stack/worktrees/<reponame> directory exists
+	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
+		fmt.Printf("No worktrees found in %s\n", worktreesDir)
+		return nil
+	}
+
+	// Get all worktrees and their branches
+	worktreeBranches, err := gitClient.GetWorktreeBranches()
+	if err != nil {
+		return fmt.Errorf("failed to list worktrees: %w", err)
+	}
+
+	// Filter to only worktrees in ~/.stack/worktrees/<reponame> directory
+	var worktrees []struct {
+		path   string
+		branch string
+	}
+	for branch, path := range worktreeBranches {
+		if strings.HasPrefix(path, worktreesDir) {
+			worktrees = append(worktrees, struct {
+				path   string
+				branch string
+			}{path: path, branch: branch})
+		}
+	}
+
+	if len(worktrees) == 0 {
+		fmt.Printf("No worktrees found in %s\n", worktreesDir)
+		return nil
+	}
+
+	fmt.Printf("Worktrees in %s:\n\n", worktreesDir)
+	for _, wt := range worktrees {
+		fmt.Printf("  %s\n    %s\n\n", ui.Branch(wt.branch), wt.path)
+	}
+
+	return nil
+}
+
+func listAllWorktrees(worktreesBaseDir string) error {
+	// Read all repo directories
+	entries, err := os.ReadDir(worktreesBaseDir)
+	if err != nil {
+		return fmt.Errorf("failed to read worktrees directory: %w", err)
+	}
+
+	if len(entries) == 0 {
+		fmt.Println("No worktrees found.")
+		return nil
+	}
+
+	totalCount := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		repoName := entry.Name()
+		repoWorktreesDir := filepath.Join(worktreesBaseDir, repoName)
+
+		// Read worktree directories for this repo
+		worktreeEntries, err := os.ReadDir(repoWorktreesDir)
+		if err != nil {
+			continue
+		}
+
+		var branches []string
+		for _, wt := range worktreeEntries {
+			if wt.IsDir() {
+				branches = append(branches, wt.Name())
+			}
+		}
+
+		if len(branches) == 0 {
+			continue
+		}
+
+		fmt.Printf("%s:\n", repoName)
+		for _, branch := range branches {
+			path := filepath.Join(repoWorktreesDir, branch)
+			fmt.Printf("  %s\n    %s\n\n", ui.Branch(branch), path)
+		}
+		totalCount += len(branches)
+	}
+
+	if totalCount == 0 {
+		fmt.Printf("No worktrees found in %s\n", worktreesBaseDir)
+	}
+
+	return nil
 }
 
 func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, worktreePath string) error {
@@ -243,40 +386,52 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return nil
 	}
 
-	// Fetch PR info
-	var prCache map[string]*github.PRInfo
-	if err := spinner.WrapWithSuccess("Fetching PRs...", "Fetched PRs", func() error {
-		var prErr error
-		prCache, prErr = githubClient.GetAllPRs()
-		return prErr
-	}); err != nil {
-		return fmt.Errorf("failed to fetch PRs: %w", err)
-	}
-
-	// Find worktrees with merged PRs
-	var mergedWorktrees []struct {
+	// Determine which worktrees to prune
+	var worktreesToPrune []struct {
 		path   string
 		branch string
 	}
-	for _, wt := range worktreesToCheck {
-		if pr, exists := prCache[wt.branch]; exists && pr.State == "MERGED" {
-			mergedWorktrees = append(mergedWorktrees, wt)
+
+	if worktreePruneAll {
+		// Prune all worktrees
+		worktreesToPrune = worktreesToCheck
+
+		fmt.Println()
+		fmt.Printf("Found %d worktree(s) to remove:\n", len(worktreesToPrune))
+		for _, wt := range worktreesToPrune {
+			fmt.Printf("  - %s (%s)\n", wt.branch, wt.path)
 		}
-	}
+		fmt.Println()
+	} else {
+		// Prune only worktrees with merged PRs
+		var prCache map[string]*github.PRInfo
+		if err := spinner.WrapWithSuccess("Fetching PRs...", "Fetched PRs", func() error {
+			var prErr error
+			prCache, prErr = githubClient.GetAllPRs()
+			return prErr
+		}); err != nil {
+			return fmt.Errorf("failed to fetch PRs: %w", err)
+		}
 
-	if len(mergedWorktrees) == 0 {
-		fmt.Println("\nNo worktrees with merged PRs to prune.")
-		return nil
-	}
+		for _, wt := range worktreesToCheck {
+			if pr, exists := prCache[wt.branch]; exists && pr.State == "MERGED" {
+				worktreesToPrune = append(worktreesToPrune, wt)
+			}
+		}
 
-	// Show what will be pruned
-	fmt.Println()
-	fmt.Printf("Found %d worktree(s) with merged PRs:\n", len(mergedWorktrees))
-	for _, wt := range mergedWorktrees {
-		pr := prCache[wt.branch]
-		fmt.Printf("  - %s (%s, PR #%d)\n", ui.Branch(wt.branch), wt.path, pr.Number)
+		if len(worktreesToPrune) == 0 {
+			fmt.Println("\nNo worktrees with merged PRs to prune.")
+			return nil
+		}
+
+		fmt.Println()
+		fmt.Printf("Found %d worktree(s) with merged PRs:\n", len(worktreesToPrune))
+		for _, wt := range worktreesToPrune {
+			pr := prCache[wt.branch]
+			fmt.Printf("  - %s (%s, PR #%d)\n", ui.Branch(wt.branch), wt.path, pr.Number)
+		}
+		fmt.Println()
 	}
-	fmt.Println()
 
 	if dryRun {
 		fmt.Println("Dry run - no changes made.")
@@ -284,8 +439,8 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	}
 
 	// Remove each worktree
-	for i, wt := range mergedWorktrees {
-		fmt.Printf("%s Removing worktree for %s...\n", ui.Progress(i+1, len(mergedWorktrees)), ui.Branch(wt.branch))
+	for i, wt := range worktreesToPrune {
+		fmt.Printf("%s Removing worktree for %s...\n", ui.Progress(i+1, len(worktreesToPrune)), ui.Branch(wt.branch))
 
 		if err := gitClient.RemoveWorktree(wt.path); err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: failed to remove worktree: %v\n", err)
@@ -296,7 +451,9 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 
 	fmt.Println()
 	fmt.Println(ui.Success("Worktree prune complete!"))
-	fmt.Printf("Tip: Run '%s' to also delete the merged branches.\n", ui.Command("stack prune"))
+	if !worktreePruneAll {
+		fmt.Printf("Tip: Run '%s' to also delete the merged branches.\n", ui.Command("stack prune"))
+	}
 
 	return nil
 }

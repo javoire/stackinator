@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -64,12 +65,7 @@ func (c *gitClient) GetRepoName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Extract the last component of the path (the directory name)
-	parts := strings.Split(repoRoot, "/")
-	if len(parts) == 0 {
-		return "", fmt.Errorf("invalid repo root path: %s", repoRoot)
-	}
-	return parts[len(parts)-1], nil
+	return filepath.Base(repoRoot), nil
 }
 
 // GetCurrentBranch returns the name of the currently checked out branch
