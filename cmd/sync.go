@@ -429,7 +429,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	}
 
 	// Wait for parallel network operations to complete
-	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "Fetched from origin and loaded PRs", func() error {
+	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "✓ Fetched from origin and loaded PRs", func() error {
 		wg.Wait()
 		return nil
 	}); err != nil {
@@ -493,7 +493,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			continue
 		}
 
-		fmt.Printf("%s Processing %s...\n", progress, ui.Branch(branch.Name))
+		fmt.Printf("\n%s %s\n", progress, ui.Branch(branch.Name))
 
 		// Check if parent PR is merged
 		oldParent := "" // Track old parent for --onto rebase
@@ -870,8 +870,6 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		} else {
 			fmt.Printf("  No PR found (create one with '%s')\n", ui.Command("gh pr create"))
 		}
-
-		fmt.Println()
 	}
 
 	// Return to original branch
@@ -880,9 +878,8 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
 	}
 
-	fmt.Println()
-
 	// Display the updated stack status (reuse prCache to avoid redundant API call)
+	fmt.Println()
 	if err := displayStatusAfterSync(gitClient, githubClient, prCache); err != nil {
 		// Don't fail if we can't display status, just warn
 		fmt.Fprintf(os.Stderr, "Warning: failed to display stack status: %v\n", err)

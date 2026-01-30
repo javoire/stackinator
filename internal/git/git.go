@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -56,6 +57,15 @@ func (c *gitClient) runCmdMayFail(args ...string) string {
 // GetRepoRoot returns the root directory of the git repository
 func (c *gitClient) GetRepoRoot() (string, error) {
 	return c.runCmd("rev-parse", "--show-toplevel")
+}
+
+// GetRepoName returns the name of the git repository (directory name)
+func (c *gitClient) GetRepoName() (string, error) {
+	repoRoot, err := c.GetRepoRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Base(repoRoot), nil
 }
 
 // GetCurrentBranch returns the name of the currently checked out branch

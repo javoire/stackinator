@@ -3,6 +3,7 @@ package git
 // GitClient defines the interface for all git operations
 type GitClient interface {
 	GetRepoRoot() (string, error)
+	GetRepoName() (string, error)
 	GetCurrentBranch() (string, error)
 	ListBranches() ([]string, error)
 	GetConfig(key string) string
