@@ -52,14 +52,14 @@ git commit -m "Add feature 2"
 ```bash
 stack status
 
- main
-  |
- feature-1 [https://github.com/you/repo/pull/1 :open]
-  |
- feature-2 [https://github.com/you/repo/pull/2 :open] *
+○ main
+│
+○ feature-1 [https://github.com/you/repo/pull/1 :open]
+│
+● feature-2 [https://github.com/you/repo/pull/2 :open]
 ```
 
-The `*` indicates your current branch.
+The `●` indicates your current branch.
 
 ### 3. Sync Everything
 
