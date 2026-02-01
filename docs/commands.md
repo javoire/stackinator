@@ -116,9 +116,30 @@ stack reparent main --dry-run
 
 ## `stack worktree <branch-name> [base-branch]`
 
-Create a git worktree in the `.worktrees/` directory for the specified branch.
+Create a git worktree in the configured worktrees directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used. If the branch doesn't exist, a new branch will be created from the current branch (or from base-branch if specified) and stack tracking will be set up automatically.
+
+By default, worktrees are created under `~/.stack/worktrees/<reponame>`. You can change this with:
+
+```bash
+git config stack.worktreesDir ~/worktrees
+```
+
+## `stack config`
+
+Show the current configuration for this repo.
+
+## `stack config get`
+
+Show the current configuration for this repo (same as `stack config`).
+
+## `stack config set`
+
+Interactively choose where worktrees are created for this repo:
+
+- `~/.stack/worktrees` (default)
+- `./.worktrees` (project-local)
 
 ```bash
 # Create worktree for new branch (from current branch, with stack tracking)
