@@ -19,15 +19,18 @@ var worktreeList bool
 
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree <branch-name> [base-branch]",
-	Short: "Create a worktree in ~/.stack/worktrees/<reponame> directory",
-	Long: `Create a git worktree in the ~/.stack/worktrees/<reponame> directory for the specified branch.
+	Short: "Create a worktree in the configured worktrees directory",
+	Long: `Create a git worktree in the configured worktrees directory for the specified branch.
 
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
 (or from base-branch if specified) and stack tracking will be set up automatically.
 Use --list to show worktrees for this repository, or --list --all for all repos.
 Use --prune to clean up worktrees for branches with merged PRs.
-Use --prune --all to remove all worktrees for this repository.`,
+Use --prune --all to remove all worktrees for this repository.
+
+By default, worktrees are created under ~/.stack/worktrees/<reponame>.
+You can change this with: git config stack.worktreesDir <path> (or use 'stack config set')`,
 	Example: `  # Create worktree for new branch (from current branch, with stack tracking)
   stack worktree my-feature
 
@@ -100,10 +103,9 @@ func init() {
 }
 
 func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, branchName, baseBranch string) error {
-	// Get home directory
-	homeDir, err := os.UserHomeDir()
+	worktreesBaseDir, err := getWorktreesBaseDir(gitClient)
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return err
 	}
 
 	// Get repository name
@@ -112,8 +114,8 @@ func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, bran
 		return fmt.Errorf("failed to get repo name: %w", err)
 	}
 
-	// Worktree path: ~/.stack/worktrees/<reponame>/<branchname>
-	worktreePath := filepath.Join(homeDir, ".stack", "worktrees", repoName, branchName)
+	// Worktree path: <worktreesBaseDir>/<reponame>/<branchname>
+	worktreePath := filepath.Join(worktreesBaseDir, repoName, branchName)
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
@@ -130,13 +132,10 @@ func runWorktree(gitClient git.GitClient, githubClient github.GitHubClient, bran
 }
 
 func runWorktreeList(gitClient git.GitClient) error {
-	// Get home directory
-	homeDir, err := os.UserHomeDir()
+	worktreesBaseDir, err := getWorktreesBaseDir(gitClient)
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return err
 	}
-
-	worktreesBaseDir := filepath.Join(homeDir, ".stack", "worktrees")
 
 	// Check if ~/.stack/worktrees directory exists
 	if _, err := os.Stat(worktreesBaseDir); os.IsNotExist(err) {
@@ -175,7 +174,7 @@ func runWorktreeList(gitClient git.GitClient) error {
 		branch string
 	}
 	for branch, path := range worktreeBranches {
-		if strings.HasPrefix(path, worktreesDir) {
+		if pathWithinDir(path, worktreesDir) {
 			worktrees = append(worktrees, struct {
 				path   string
 				branch string
@@ -341,10 +340,9 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 }
 
 func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
-	// Get home directory
-	homeDir, err := os.UserHomeDir()
+	worktreesBaseDir, err := getWorktreesBaseDir(gitClient)
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return err
 	}
 
 	// Get repository name
@@ -353,7 +351,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		return fmt.Errorf("failed to get repo name: %w", err)
 	}
 
-	worktreesDir := filepath.Join(homeDir, ".stack", "worktrees", repoName)
+	worktreesDir := filepath.Join(worktreesBaseDir, repoName)
 
 	// Check if ~/.stack/worktrees/<reponame> directory exists
 	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
@@ -373,7 +371,7 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		branch string
 	}
 	for branch, path := range worktreeBranches {
-		if strings.HasPrefix(path, worktreesDir) {
+		if pathWithinDir(path, worktreesDir) {
 			worktreesToCheck = append(worktreesToCheck, struct {
 				path   string
 				branch string
@@ -456,4 +454,61 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 	}
 
 	return nil
+}
+
+func getHomeDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+	return homeDir, nil
+}
+
+func getDefaultWorktreesBaseDir() (string, error) {
+	homeDir, err := getHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".stack", "worktrees"), nil
+}
+
+func getWorktreesBaseDir(gitClient git.GitClient) (string, error) {
+	defaultDir, err := getDefaultWorktreesBaseDir()
+	if err != nil {
+		return "", err
+	}
+	homeDir, err := getHomeDir()
+	if err != nil {
+		return "", err
+	}
+	repoRoot, repoErr := gitClient.GetRepoRoot()
+
+	configured := strings.TrimSpace(gitClient.GetConfig("stack.worktreesDir"))
+	if configured == "" {
+		return defaultDir, nil
+	}
+
+	expanded := os.ExpandEnv(configured)
+	if strings.HasPrefix(expanded, "~") {
+		trimmed := strings.TrimPrefix(expanded, "~")
+		trimmed = strings.TrimPrefix(trimmed, string(os.PathSeparator))
+		expanded = filepath.Join(homeDir, trimmed)
+	}
+	if !filepath.IsAbs(expanded) {
+		if repoErr == nil {
+			expanded = filepath.Join(repoRoot, expanded)
+		} else {
+			expanded = filepath.Join(homeDir, expanded)
+		}
+	}
+
+	return filepath.Clean(expanded), nil
+}
+
+func pathWithinDir(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }

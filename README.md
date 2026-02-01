@@ -90,6 +90,21 @@ See [Commands Reference](docs/commands.md) for full documentation.
 - `stack reparent <new-parent>` - Change the parent of the current branch
 - `stack worktree <branch-name>` - Create a worktree for a branch
 
+## Configuration
+
+Configure the base branch and worktrees directory with git config:
+
+```bash
+git config stack.baseBranch develop  # Default is "main"
+git config stack.worktreesDir ~/worktrees
+```
+
+Or use the interactive helper:
+
+```bash
+stack config set
+```
+
 ## Documentation
 
 - [How It Works](docs/how-it-works.md) - Stack tracking and sync algorithm
