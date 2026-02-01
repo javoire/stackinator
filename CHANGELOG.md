@@ -1,3 +1,9 @@
+## [1.12.0](https://github.com/javoire/stackinator/compare/v1.11.0...v1.12.0) (2026-02-01)
+
+### Features
+
+* add stack config command ([#57](https://github.com/javoire/stackinator/issues/57)) ([2349aff](https://github.com/javoire/stackinator/commit/2349aff962b986f2ee9f3983527341d862164a50))
+
 ## [1.11.0](https://github.com/javoire/stackinator/compare/v1.10.1...v1.11.0) (2026-01-29)
 
 ### Features
