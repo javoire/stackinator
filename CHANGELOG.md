@@ -1,3 +1,9 @@
+## [1.13.0](https://github.com/javoire/stackinator/compare/v1.12.0...v1.13.0) (2026-02-02)
+
+### Features
+
+* auto-add branches to stack without prompting ([#58](https://github.com/javoire/stackinator/issues/58)) ([fc2fec7](https://github.com/javoire/stackinator/commit/fc2fec7302af9c687f4ea0a88e912910622bf4e0))
+
 ## [1.12.0](https://github.com/javoire/stackinator/compare/v1.11.0...v1.12.0) (2026-02-01)
 
 ### Features
