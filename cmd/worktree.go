@@ -269,6 +269,19 @@ func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, wo
 
 	// Create worktree with new branch
 	if err := gitClient.AddWorktreeNewBranch(worktreePath, branchName, baseRef); err != nil {
+		if existingPath := parseWorktreeInUseError(err); existingPath != "" {
+			return fmt.Errorf("branch %s is already checked out in another worktree\n\n"+
+				"Existing worktree: %s\n\n"+
+				"Options:\n"+
+				"  1. Navigate to existing worktree:\n"+
+				"     %s\n\n"+
+				"  2. Remove existing worktree and retry:\n"+
+				"     %s",
+				ui.Branch(branchName),
+				existingPath,
+				ui.Command(fmt.Sprintf("cd %s", existingPath)),
+				ui.Command(fmt.Sprintf("git worktree remove %s", existingPath)))
+		}
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
@@ -293,6 +306,19 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 	if gitClient.BranchExists(branchName) {
 		fmt.Printf("Creating worktree for local branch %s\n", ui.Branch(branchName))
 		if err := gitClient.AddWorktree(worktreePath, branchName); err != nil {
+			if existingPath := parseWorktreeInUseError(err); existingPath != "" {
+				return fmt.Errorf("branch %s is already checked out in another worktree\n\n"+
+					"Existing worktree: %s\n\n"+
+					"Options:\n"+
+					"  1. Navigate to existing worktree:\n"+
+					"     %s\n\n"+
+					"  2. Remove existing worktree and retry:\n"+
+					"     %s",
+					ui.Branch(branchName),
+					existingPath,
+					ui.Command(fmt.Sprintf("cd %s", existingPath)),
+					ui.Command(fmt.Sprintf("git worktree remove %s", existingPath)))
+			}
 			return fmt.Errorf("failed to create worktree: %w", err)
 		}
 		if !dryRun {
@@ -493,8 +519,7 @@ func getWorktreesBaseDir(gitClient git.GitClient) (string, error) {
 	}
 
 	expanded := os.ExpandEnv(configured)
-	if strings.HasPrefix(expanded, "~") {
-		trimmed := strings.TrimPrefix(expanded, "~")
+	if trimmed, found := strings.CutPrefix(expanded, "~"); found {
 		trimmed = strings.TrimPrefix(trimmed, string(os.PathSeparator))
 		expanded = filepath.Join(homeDir, trimmed)
 	}
@@ -541,4 +566,25 @@ func symlinkEnvFile(gitClient git.GitClient, worktreePath string) {
 	}
 
 	fmt.Println(ui.Success("Symlinked .env file"))
+}
+
+// parseWorktreeInUseError extracts the existing worktree path from a git error.
+// Returns the path if error matches "is already used by worktree at", empty string otherwise.
+func parseWorktreeInUseError(err error) string {
+	if err == nil {
+		return ""
+	}
+	errStr := err.Error()
+	// Git error format: fatal: 'branch' is already used by worktree at 'path'
+	marker := "is already used by worktree at '"
+	idx := strings.Index(errStr, marker)
+	if idx == -1 {
+		return ""
+	}
+	pathStart := idx + len(marker)
+	pathEnd := strings.LastIndex(errStr, "'")
+	if pathEnd <= pathStart {
+		return ""
+	}
+	return errStr[pathStart:pathEnd]
 }
