@@ -281,6 +281,7 @@ func createNewBranchWorktree(gitClient git.GitClient, branchName, baseBranch, wo
 	if !dryRun {
 		fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s", worktreePath)))
 		fmt.Println(ui.Success(fmt.Sprintf("Branch %s with parent %s", ui.Branch(branchName), ui.Branch(baseBranch))))
+		symlinkEnvFile(gitClient, worktreePath)
 		fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 	}
 
@@ -296,6 +297,7 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 		}
 		if !dryRun {
 			fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s", worktreePath)))
+			symlinkEnvFile(gitClient, worktreePath)
 			fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 		}
 		return nil
@@ -309,6 +311,7 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 		}
 		if !dryRun {
 			fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s (tracking origin/%s)", worktreePath, branchName)))
+			symlinkEnvFile(gitClient, worktreePath)
 			fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 		}
 		return nil
@@ -334,6 +337,7 @@ func createWorktreeForExisting(gitClient git.GitClient, branchName, worktreePath
 	if !dryRun {
 		fmt.Println(ui.Success(fmt.Sprintf("Created worktree at %s", worktreePath)))
 		fmt.Println(ui.Success(fmt.Sprintf("Branch %s with parent %s", ui.Branch(branchName), ui.Branch(currentBranch))))
+		symlinkEnvFile(gitClient, worktreePath)
 		fmt.Printf("\nTo switch to this worktree, run:\n  %s\n", ui.Command(fmt.Sprintf("cd %s", worktreePath)))
 	}
 	return nil
@@ -511,4 +515,30 @@ func pathWithinDir(path, dir string) bool {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+func symlinkEnvFile(gitClient git.GitClient, worktreePath string) {
+	repoRoot, err := gitClient.GetRepoRoot()
+	if err != nil {
+		return
+	}
+
+	envPath := filepath.Join(repoRoot, ".env")
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		return // No .env file, nothing to do
+	}
+
+	targetPath := filepath.Join(worktreePath, ".env")
+
+	if dryRun {
+		fmt.Printf("Would symlink .env from %s\n", envPath)
+		return
+	}
+
+	if err := os.Symlink(envPath, targetPath); err != nil {
+		// Silently ignore errors (e.g., symlink already exists)
+		return
+	}
+
+	fmt.Println(ui.Success("Symlinked .env file"))
 }
