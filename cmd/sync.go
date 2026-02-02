@@ -264,22 +264,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	parent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", originalBranch))
 
 	if parent == "" && originalBranch != baseBranch {
-		fmt.Printf("Branch '%s' is not in a stack.\n", ui.Branch(originalBranch))
-		fmt.Printf("Add it with parent '%s'? [Y/n] ", ui.Branch(baseBranch))
-
-		reader := bufio.NewReader(stdinReader)
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("failed to read input: %w", err)
-		}
-
-		input = strings.TrimSpace(strings.ToLower(input))
-		if input != "" && input != "y" && input != "yes" {
-			fmt.Println("Aborted.")
-			return nil
-		}
-
-		// Set the parent
+		// Auto-add branch to stack with base branch as parent
 		configKey := fmt.Sprintf("branch.%s.stackparent", originalBranch)
 		if err := gitClient.SetConfig(configKey, baseBranch); err != nil {
 			return fmt.Errorf("failed to set parent: %w", err)
