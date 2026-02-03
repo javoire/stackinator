@@ -1,3 +1,10 @@
+## [1.14.0](https://github.com/javoire/stackinator/compare/v1.13.0...v1.14.0) (2026-02-03)
+
+### Features
+
+* improve error message when branch already checked out in worktree ([#59](https://github.com/javoire/stackinator/issues/59)) ([72e6887](https://github.com/javoire/stackinator/commit/72e68877129dbaf9e0908083e0425dd1cc7e9ba3))
+* symlink .env file into worktrees ([#60](https://github.com/javoire/stackinator/issues/60)) ([bd64571](https://github.com/javoire/stackinator/commit/bd6457169b5f940aeea0a5de34550c95cf52ddd8))
+
 ## [1.13.0](https://github.com/javoire/stackinator/compare/v1.12.0...v1.13.0) (2026-02-02)
 
 ### Features
