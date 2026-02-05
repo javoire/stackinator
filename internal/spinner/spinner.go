@@ -16,6 +16,7 @@ var Enabled = true
 // Spinner represents a loading spinner
 type Spinner struct {
 	message      string
+	indent       string
 	frames       []string
 	interval     time.Duration
 	writer       io.Writer
@@ -32,6 +33,20 @@ var defaultFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 func New(message string) *Spinner {
 	return &Spinner{
 		message:      message,
+		indent:       "",
+		frames:       defaultFrames,
+		interval:     80 * time.Millisecond,
+		writer:       os.Stdout,
+		stopChan:     make(chan struct{}),
+		hideWhenDone: false,
+	}
+}
+
+// NewWithIndent creates a new spinner with indent before the spinner frame
+func NewWithIndent(indent, message string) *Spinner {
+	return &Spinner{
+		message:      message,
+		indent:       indent,
 		frames:       defaultFrames,
 		interval:     80 * time.Millisecond,
 		writer:       os.Stdout,
@@ -110,7 +125,7 @@ func (s *Spinner) run() {
 		case <-ticker.C:
 			s.mu.Lock()
 			frame := s.frames[frameIdx%len(s.frames)]
-			fmt.Fprintf(s.writer, "\r%s %s", frame, dim.Sprint(s.message))
+			fmt.Fprintf(s.writer, "\r%s%s %s", s.indent, frame, dim.Sprint(s.message))
 			s.mu.Unlock()
 			frameIdx++
 		}
@@ -168,7 +183,7 @@ func WrapWithSuccessIndented(indent, message, successMessage string, fn func() e
 		}
 		return err
 	}
-	sp := New(indent + message).Start()
+	sp := NewWithIndent(indent, message).Start()
 	err := fn()
 	if err != nil {
 		sp.Stop(fmt.Sprintf("%s%s %s: %v", indent, red.Sprint("✗"), message, err))

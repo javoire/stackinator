@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/javoire/stackinator/internal/git"
+	"github.com/javoire/stackinator/internal/spinner"
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/javoire/stackinator/internal/ui"
 	"github.com/spf13/cobra"
@@ -78,21 +79,25 @@ func runNew(gitClient git.GitClient, branchName string, explicitParent string) e
 		}
 	}
 
-	fmt.Printf("Creating new branch %s from %s\n", ui.Branch(branchName), ui.Branch(parent))
-
-	// Create the new branch
-	if err := gitClient.CreateBranchAndCheckout(branchName, parent); err != nil {
-		return fmt.Errorf("failed to create branch: %w", err)
-	}
-
-	// Set parent in git config
-	configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
-	if err := gitClient.SetConfig(configKey, parent); err != nil {
-		return fmt.Errorf("failed to set parent config: %w", err)
+	// Create the new branch and set parent config
+	if err := spinner.WrapWithSuccess(
+		fmt.Sprintf("Creating branch %s from %s...", branchName, parent),
+		fmt.Sprintf("Created branch %s from %s", ui.Branch(branchName), ui.Branch(parent)),
+		func() error {
+			if err := gitClient.CreateBranchAndCheckout(branchName, parent); err != nil {
+				return fmt.Errorf("failed to create branch: %w", err)
+			}
+			configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
+			if err := gitClient.SetConfig(configKey, parent); err != nil {
+				return fmt.Errorf("failed to set parent config: %w", err)
+			}
+			return nil
+		},
+	); err != nil {
+		return err
 	}
 
 	if !dryRun {
-		fmt.Println(ui.Success(fmt.Sprintf("Created branch %s with parent %s", ui.Branch(branchName), ui.Branch(parent))))
 		fmt.Println()
 
 		// Show the local stack (fast, no PR fetching)

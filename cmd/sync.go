@@ -414,7 +414,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	}
 
 	// Wait for parallel network operations to complete
-	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "✓ Fetched from origin and loaded PRs", func() error {
+	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "Fetched from origin and loaded PRs", func() error {
 		wg.Wait()
 		return nil
 	}); err != nil {
