@@ -1,3 +1,9 @@
+## [1.15.0](https://github.com/javoire/stackinator/compare/v1.14.0...v1.15.0) (2026-02-05)
+
+### Features
+
+* improve spinner output consistency ([#61](https://github.com/javoire/stackinator/issues/61)) ([9d5067f](https://github.com/javoire/stackinator/commit/9d5067fd508e60454c06a98867609201272d011d))
+
 ## [1.14.0](https://github.com/javoire/stackinator/compare/v1.13.0...v1.14.0) (2026-02-03)
 
 ### Features
