@@ -758,6 +758,73 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 	})
 }
 
+func TestRunSyncNoUniqueCommits(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("rebases even when no unique commits by patch", func(t *testing.T) {
+		// This tests that sync still rebases when GetUniqueCommitsByPatch returns 0 commits.
+		// A branch may have no unique patches but still be behind origin/master
+		// (e.g., branch with only merge commits, or branch whose changes are already in master).
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		// Setup: Get current branch
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+		// Save original branch state
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-a").Return(nil)
+		// Check working tree
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		// Get base branch
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+		// Get stack chain
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+		// Parallel operations
+		mockGit.On("Fetch").Return(nil)
+		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
+		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
+		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		// Check if any branches in the current stack are in worktrees
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		// Get remote branches
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+		// Process feature-a
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranch", "main").Return(nil)
+		// GetUniqueCommitsByPatch returns empty slice - no unique commits
+		// But Rebase should STILL be called to incorporate target updates
+		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{}, nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+
+		err := runSync(mockGit, mockGH)
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+}
+
 func TestRunSyncAbort(t *testing.T) {
 	testutil.SetupTest()
 	defer testutil.TeardownTest()

@@ -625,12 +625,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 					return gitClient.Rebase(rebaseTarget)
 				}
 
-				// If no unique commits, branch is up-to-date
+				// If no unique commits by patch comparison, just do a simple rebase.
+				// The branch might still need to incorporate new commits from the target.
+				// Rebase will be a no-op if truly up-to-date.
 				if len(uniqueCommits) == 0 {
 					if git.Verbose {
-						fmt.Printf("  Branch is up-to-date with %s (no unique patches)\n", rebaseTarget)
+						fmt.Printf("  No unique patches found, rebasing to incorporate target updates\n")
 					}
-					return nil
+					return gitClient.Rebase(rebaseTarget)
 				}
 
 				if git.Verbose {
