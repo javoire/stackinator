@@ -1,3 +1,9 @@
+## [1.16.1](https://github.com/javoire/stackinator/compare/v1.16.0...v1.16.1) (2026-02-06)
+
+### Bug Fixes
+
+* sync rebases branches with no unique commits ([#63](https://github.com/javoire/stackinator/issues/63)) ([525ab29](https://github.com/javoire/stackinator/commit/525ab29c5cce16981a6612bf312adb139ee2ee13))
+
 ## [1.16.0](https://github.com/javoire/stackinator/compare/v1.15.0...v1.16.0) (2026-02-06)
 
 ### Features
