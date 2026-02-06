@@ -55,12 +55,21 @@ Flags:
 
 - `--force`, `-f` - Use `--force` instead of `--force-with-lease` for push (bypasses safety checks)
 
-## `stack parent`
+## `stack parent [new-parent]`
 
-Display the parent branch of the current branch in the stack.
+Show or change the parent branch of the current branch in the stack.
+
+Without arguments, displays the current parent. With a branch argument, changes the parent to the specified branch and updates the PR base if a PR exists.
 
 ```bash
+# Show parent of current branch
 stack parent
+
+# Change current branch to be based on a different parent
+stack parent feature-auth
+
+# Preview what would happen
+stack parent main --dry-run
 ```
 
 ## `stack prune`
@@ -98,20 +107,6 @@ stack rename feature-improved-name
 
 # Preview without making changes
 stack rename feature-improved-name --dry-run
-```
-
-## `stack reparent <new-parent>`
-
-Change the parent branch of the current branch in the stack.
-
-Updates the stack parent relationship and, if a PR exists, automatically updates the PR base to match the new parent.
-
-```bash
-# Change current branch to be based on a different parent
-stack reparent feature-auth
-
-# Preview what would happen
-stack reparent main --dry-run
 ```
 
 ## `stack worktree <branch-name> [base-branch]`
