@@ -1,3 +1,9 @@
+## [1.16.0](https://github.com/javoire/stackinator/compare/v1.15.0...v1.16.0) (2026-02-06)
+
+### Features
+
+* consolidate reparent into parent command ([#62](https://github.com/javoire/stackinator/issues/62)) ([5444539](https://github.com/javoire/stackinator/commit/54445391f83eab906591437b226c93baf4656e24))
+
 ## [1.15.0](https://github.com/javoire/stackinator/compare/v1.14.0...v1.15.0) (2026-02-05)
 
 ### Features
