@@ -432,11 +432,14 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		fmt.Println()
 	} else {
 		// Prune only worktrees with merged PRs
+		var wtBranches []string
+		for _, wt := range worktreesToCheck {
+			wtBranches = append(wtBranches, wt.branch)
+		}
 		var prCache map[string]*github.PRInfo
 		if err := spinner.WrapWithSuccess("Fetching PRs...", "Fetched PRs", func() error {
-			var prErr error
-			prCache, prErr = githubClient.GetAllPRs()
-			return prErr
+			prCache = githubClient.GetPRsForBranches(wtBranches)
+			return nil
 		}); err != nil {
 			return fmt.Errorf("failed to fetch PRs: %w", err)
 		}

@@ -63,28 +63,15 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 	var tree *stack.TreeNode
 	var allTreeBranches []string
 
-	// Start fetch and PR loading in parallel with stack tree building (if not --no-pr)
-	// These are the slowest operations and can run while we build the tree
-	var wg sync.WaitGroup
+	// Start fetch in parallel with stack tree building (if not --no-pr)
+	var fetchWg sync.WaitGroup
 	var prCache map[string]*github.PRInfo
-	var prErr error
 	fetchDone := false
 
 	if !noPR {
-		wg.Add(2)
+		fetchWg.Add(1)
 		go func() {
-			defer wg.Done()
-			prCache, prErr = githubClient.GetAllPRs()
-			if prErr != nil {
-				if verbose {
-					fmt.Printf("  [gh] Error fetching PRs: %v\n", prErr)
-				}
-				// If fetching fails, fall back to empty cache
-				prCache = make(map[string]*github.PRInfo)
-			}
-		}()
-		go func() {
-			defer wg.Done()
+			defer fetchWg.Done()
 			// Fetch latest changes from origin (needed for sync issue detection)
 			_ = gitClient.Fetch()
 			fetchDone = true
@@ -93,7 +80,7 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 		prCache = make(map[string]*github.PRInfo)
 	}
 
-	// Build the stack tree AND wait for PR fetch (runs in parallel)
+	// Build the stack tree, then fetch PRs for tree branches only
 	if err := spinner.WrapWithAutoDelay("Loading stack...", 300*time.Millisecond, func() error {
 		// Get current branch
 		var err error
@@ -126,42 +113,9 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 		// Get ALL branch names in the tree (including intermediate branches without stackparent)
 		allTreeBranches = getAllBranchNamesFromTree(tree)
 
-		// Wait for PR fetch to complete (if running)
+		// Fetch PRs for stack branches only (parallel individual fetches)
 		if !noPR {
-			wg.Wait()
-
-			// GetAllPRs only fetches open PRs (to avoid 502 timeouts on large repos).
-			// For branches in our stack that aren't in the cache, check individually
-			// to detect merged PRs that need special handling.
-			// OPTIMIZATION: Only check branches in the current tree, not all stack branches.
-			branchSet := make(map[string]bool)
-			for _, name := range allTreeBranches {
-				branchSet[name] = true
-			}
-			baseBranch := stack.GetBaseBranch(gitClient)
-
-			for _, branch := range stackBranches {
-				// Skip branches not in the current tree
-				if !branchSet[branch.Name] {
-					continue
-				}
-				// Skip if already in cache (has open PR)
-				if _, exists := prCache[branch.Name]; exists {
-					continue
-				}
-				// Fetch PR info for this branch (might be merged or non-existent)
-				if pr, err := githubClient.GetPRForBranch(branch.Name); err == nil && pr != nil {
-					prCache[branch.Name] = pr
-				}
-				// Also check parent if not in cache and not base branch
-				if branch.Parent != baseBranch {
-					if _, exists := prCache[branch.Parent]; !exists {
-						if pr, err := githubClient.GetPRForBranch(branch.Parent); err == nil && pr != nil {
-							prCache[branch.Parent] = pr
-						}
-					}
-				}
-			}
+			prCache = githubClient.GetPRsForBranches(allTreeBranches)
 		}
 
 		return nil
@@ -170,8 +124,8 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 	}
 
 	if len(stackBranches) == 0 {
-		// Wait for PR fetch to complete before returning
-		wg.Wait()
+		// Wait for fetch to complete before returning
+		fetchWg.Wait()
 		fmt.Println("No stack branches found.")
 		fmt.Printf("Current branch: %s\n", ui.Branch(currentBranch))
 		fmt.Printf("\nUse '%s' to create a new stack branch.\n", ui.Command("stack new <branch-name>"))
@@ -220,6 +174,9 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 
 	// Check for sync issues (skip if --no-pr)
 	if !noPR {
+		// Wait for git fetch to complete (needed for sync issue detection)
+		fetchWg.Wait()
+
 		// Filter stackBranches to only include branches in the current tree
 		branchSet := make(map[string]bool)
 		for _, name := range allTreeBranches {

@@ -272,21 +272,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		fmt.Println(ui.Success(fmt.Sprintf("Added '%s' to stack with parent '%s'", ui.Branch(originalBranch), ui.Branch(baseBranch))))
 	}
 
-	// Start parallel fetch operations (git fetch and GitHub PR fetch)
-	// These are the slowest operations and have no dependencies between them
+	// Start git fetch in parallel (the slowest network operation)
 	var wg sync.WaitGroup
 	var fetchErr error
-	var prCache map[string]*github.PRInfo
-	var prErr error
 
-	wg.Add(2)
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		fetchErr = gitClient.Fetch()
-	}()
-	go func() {
-		defer wg.Done()
-		prCache, prErr = githubClient.GetAllPRs()
 	}()
 
 	// While network operations run in background, do local work
@@ -413,9 +406,22 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		}
 	}
 
-	// Wait for parallel network operations to complete
+	// Collect all branches we need PR info for (stack branches + their parents)
+	prBranchSet := make(map[string]bool)
+	for _, branch := range sorted {
+		prBranchSet[branch.Name] = true
+		prBranchSet[branch.Parent] = true
+	}
+	var prBranches []string
+	for b := range prBranchSet {
+		prBranches = append(prBranches, b)
+	}
+
+	// Wait for git fetch and fetch PRs in parallel for stack branches only
+	var prCache map[string]*github.PRInfo
 	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "Fetched from origin and loaded PRs", func() error {
 		wg.Wait()
+		prCache = githubClient.GetPRsForBranches(prBranches)
 		return nil
 	}); err != nil {
 		return err
@@ -424,31 +430,6 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Check for fetch errors
 	if fetchErr != nil {
 		return fmt.Errorf("failed to fetch: %w", fetchErr)
-	}
-
-	// Handle PR fetch errors gracefully
-	if prErr != nil {
-		prCache = make(map[string]*github.PRInfo)
-	}
-
-	// GetAllPRs only fetches open PRs (to avoid 502 timeouts on large repos).
-	// For branches in our stack that aren't in the cache, check individually
-	// to detect merged PRs that need special handling.
-	for _, branch := range sorted {
-		// Skip if already in cache (has open PR)
-		if _, exists := prCache[branch.Name]; exists {
-			continue
-		}
-		// Fetch PR info for this branch (might be merged or non-existent)
-		if pr, err := githubClient.GetPRForBranch(branch.Name); err == nil && pr != nil {
-			prCache[branch.Name] = pr
-		}
-		// Also check parent if not in cache
-		if _, exists := prCache[branch.Parent]; !exists {
-			if pr, err := githubClient.GetPRForBranch(branch.Parent); err == nil && pr != nil {
-				prCache[branch.Parent] = pr
-			}
-		}
 	}
 
 	// Get all remote branches in one call (more efficient than checking each branch individually)

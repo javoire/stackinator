@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Verbose controls whether to print executed commands
@@ -141,50 +142,28 @@ func (c *githubClient) GetPRForBranch(branch string) (*PRInfo, error) {
 	}, nil
 }
 
-// GetAllPRs fetches all open PRs for the repository in a single call
-// Only fetches open PRs to avoid timeouts on repos with many PRs
-func (c *githubClient) GetAllPRs() (map[string]*PRInfo, error) {
-	// Fetch only open PRs - much faster and avoids 502 timeouts on large repos
-	output, err := c.runGH("pr", "list", "--state", "open", "--json", "number,state,headRefName,baseRefName,title,url,mergeStateStatus", "--limit", "500")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list PRs: %w", err)
+// GetPRsForBranches fetches PR info for specific branches in parallel.
+// This is much faster than bulk-fetching all PRs on large repos (500+ PRs),
+// where `gh pr list --limit 500` can time out with 502 Bad Gateway.
+func (c *githubClient) GetPRsForBranches(branches []string) map[string]*PRInfo {
+	result := make(map[string]*PRInfo)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, branch := range branches {
+		wg.Add(1)
+		go func(b string) {
+			defer wg.Done()
+			if pr, err := c.GetPRForBranch(b); err == nil && pr != nil {
+				mu.Lock()
+				result[b] = pr
+				mu.Unlock()
+			}
+		}(branch)
 	}
 
-	var prs []struct {
-		Number           int    `json:"number"`
-		State            string `json:"state"`
-		HeadRefName      string `json:"headRefName"`
-		BaseRefName      string `json:"baseRefName"`
-		Title            string `json:"title"`
-		URL              string `json:"url"`
-		MergeStateStatus string `json:"mergeStateStatus"`
-	}
-
-	if err := json.Unmarshal([]byte(output), &prs); err != nil {
-		return nil, fmt.Errorf("failed to parse PR list: %w", err)
-	}
-
-	if Verbose {
-		fmt.Printf("  [gh] Fetched %d PRs\n", len(prs))
-		for _, pr := range prs {
-			fmt.Printf("  [gh]   - %s (PR #%d, %s)\n", pr.HeadRefName, pr.Number, pr.State)
-		}
-	}
-
-	// Create a map of branch name -> PR info
-	prMap := make(map[string]*PRInfo)
-	for _, pr := range prs {
-		prMap[pr.HeadRefName] = &PRInfo{
-			Number:           pr.Number,
-			State:            pr.State,
-			Base:             pr.BaseRefName,
-			Title:            pr.Title,
-			URL:              pr.URL,
-			MergeStateStatus: pr.MergeStateStatus,
-		}
-	}
-
-	return prMap, nil
+	wg.Wait()
+	return result
 }
 
 // UpdatePRBase updates the base branch of a PR
