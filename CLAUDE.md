@@ -56,7 +56,7 @@ go test ./...
 
 **Merged PR Detection** (`cmd/sync.go:runSync`):
 
-- Fetches all PRs upfront for performance (cached in single API call)
+- Fetches PRs for relevant branches in parallel
 - If parent PR is merged, updates child's parent to grandparent
 - If branch's own PR is merged, removes from stack tracking
 

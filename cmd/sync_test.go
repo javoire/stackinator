@@ -10,6 +10,7 @@ import (
 	"github.com/javoire/stackinator/internal/stack"
 	"github.com/javoire/stackinator/internal/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestRunSyncBasic(t *testing.T) {
@@ -41,11 +42,7 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "feature-b").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 		// Check if any branches in the current stack are in worktrees
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -129,9 +126,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		prCache := map[string]*github.PRInfo{
 			"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
 		}
-		mockGH.On("GetAllPRs").Return(prCache, nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-b").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(prCache)
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -203,7 +198,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 			"feature-a": testutil.NewPRInfo(1, "OPEN", "main", "Feature A", "url"),
 			"feature-b": testutil.NewPRInfo(2, "OPEN", "main", "Feature B", "url"), // Wrong base!
 		}
-		mockGH.On("GetAllPRs").Return(prCache, nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(prCache)
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -285,10 +280,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -350,10 +342,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -407,10 +396,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -491,9 +477,7 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 	mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 	// When there are no stack branches, code returns early after parallel ops
-	// These are started but may not complete before early return
 	mockGit.On("Fetch").Return(nil).Maybe()
-	mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil).Maybe()
 	mockGit.On("FastForwardToRemote", "main").Return(nil).Maybe()
 
 	// These calls don't happen when there are no stack branches (early return)
@@ -547,10 +531,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -617,10 +598,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		// GetPRForBranch is called for branches not in the cache (to detect merged PRs)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -707,10 +685,7 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil)
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil)
-		mockGH.On("GetPRForBranch", "feature-b").Return(nil, nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		// Worktree checks
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -789,9 +764,7 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 		// Parallel operations
 		mockGit.On("Fetch").Return(nil)
-		mockGH.On("GetAllPRs").Return(make(map[string]*github.PRInfo), nil)
-		mockGH.On("GetPRForBranch", "feature-a").Return(nil, nil).Maybe()
-		mockGH.On("GetPRForBranch", "main").Return(nil, nil).Maybe()
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 		// Check if any branches in the current stack are in worktrees
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)

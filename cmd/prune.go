@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
@@ -70,25 +69,13 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Get base branch to exclude it from pruning
 	baseBranch := stack.GetBaseBranch(gitClient)
 
-	// Start PR fetch in parallel with branch loading (PR fetch is the slowest operation)
-	var wg sync.WaitGroup
-	var prCache map[string]*github.PRInfo
-	var prErr error
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		prCache, prErr = githubClient.GetAllPRs()
-	}()
-
-	// Get branches to check (runs in parallel with PR fetch)
+	// Get branches to check
 	var branchNames []string
-	var branchErr error
 	if pruneAll {
 		// Check all local branches
+		var branchErr error
 		branchNames, branchErr = gitClient.ListBranches()
 		if branchErr != nil {
-			wg.Wait() // Wait for PR fetch before returning
 			return fmt.Errorf("failed to get branches: %w", branchErr)
 		}
 
@@ -102,10 +89,8 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		branchNames = filtered
 	} else {
 		// Check only stack branches
-		var stackBranches []stack.StackBranch
-		stackBranches, branchErr = stack.GetStackBranches(gitClient)
+		stackBranches, branchErr := stack.GetStackBranches(gitClient)
 		if branchErr != nil {
-			wg.Wait() // Wait for PR fetch before returning
 			return fmt.Errorf("failed to get stack branches: %w", branchErr)
 		}
 
@@ -115,7 +100,6 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	}
 
 	if len(branchNames) == 0 {
-		wg.Wait() // Wait for PR fetch before returning
 		if pruneAll {
 			fmt.Println("No branches found to check.")
 		} else {
@@ -124,17 +108,13 @@ func runPrune(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		return nil
 	}
 
-	// Wait for PR fetch to complete
-	if err := spinner.WrapWithSuccess("Loading branches and fetching PRs...", "Loaded branches and PRs", func() error {
-		wg.Wait()
+	// Fetch PRs for the branches we need to check (parallel individual fetches)
+	var prCache map[string]*github.PRInfo
+	if err := spinner.WrapWithSuccess("Fetching PRs...", "Fetched PRs", func() error {
+		prCache = githubClient.GetPRsForBranches(branchNames)
 		return nil
 	}); err != nil {
 		return err
-	}
-
-	// Check for PR fetch errors
-	if prErr != nil {
-		return fmt.Errorf("failed to fetch PRs: %w", prErr)
 	}
 
 	// Find branches with merged PRs
