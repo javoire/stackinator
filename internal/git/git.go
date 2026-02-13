@@ -59,13 +59,14 @@ func (c *gitClient) GetRepoRoot() (string, error) {
 	return c.runCmd("rev-parse", "--show-toplevel")
 }
 
-// GetRepoName returns the name of the git repository (directory name)
+// GetRepoName returns the name of the git repository (directory name).
+// Uses --git-common-dir to get the correct repo name even from worktrees.
 func (c *gitClient) GetRepoName() (string, error) {
-	repoRoot, err := c.GetRepoRoot()
+	gitCommonDir, err := c.runCmd("rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", err
 	}
-	return filepath.Base(repoRoot), nil
+	return filepath.Base(filepath.Dir(gitCommonDir)), nil
 }
 
 // GetCurrentBranch returns the name of the currently checked out branch
