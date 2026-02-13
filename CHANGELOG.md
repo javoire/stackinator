@@ -1,3 +1,9 @@
+## [1.16.2](https://github.com/javoire/stackinator/compare/v1.16.1...v1.16.2) (2026-02-13)
+
+### Bug Fixes
+
+* **github:** replace bulk PR fetch with parallel per-branch fetches ([#64](https://github.com/javoire/stackinator/issues/64)) ([af93c2a](https://github.com/javoire/stackinator/commit/af93c2abc03647b637bbcaa9cf1e35917daaff8e))
+
 ## [1.16.1](https://github.com/javoire/stackinator/compare/v1.16.0...v1.16.1) (2026-02-06)
 
 ### Bug Fixes
