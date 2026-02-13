@@ -1,3 +1,9 @@
+## [1.16.4](https://github.com/javoire/stackinator/compare/v1.16.3...v1.16.4) (2026-02-13)
+
+### Bug Fixes
+
+* **git:** resolve incorrect repo name when running from worktree ([#66](https://github.com/javoire/stackinator/issues/66)) ([31b67c5](https://github.com/javoire/stackinator/commit/31b67c5b06db22e47a7a1170c5894b93e69a775a))
+
 ## [1.16.3](https://github.com/javoire/stackinator/compare/v1.16.2...v1.16.3) (2026-02-13)
 
 ### Bug Fixes
