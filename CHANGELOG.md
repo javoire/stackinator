@@ -1,3 +1,9 @@
+## [1.17.0](https://github.com/javoire/stackinator/compare/v1.16.4...v1.17.0) (2026-02-13)
+
+### Features
+
+* **skill:** add Claude Code skill and `stack skill install` command ([#67](https://github.com/javoire/stackinator/issues/67)) ([75adc11](https://github.com/javoire/stackinator/commit/75adc116055dcc8df4f6e2a6dba5f4ffce93701e))
+
 ## [1.16.4](https://github.com/javoire/stackinator/compare/v1.16.3...v1.16.4) (2026-02-13)
 
 ### Bug Fixes
