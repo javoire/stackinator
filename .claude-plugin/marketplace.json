@@ -1,0 +1,13 @@
+{
+  "name": "stackinator",
+  "owner": {
+    "name": "javoire"
+  },
+  "plugins": [
+    {
+      "name": "stack",
+      "source": "./plugins/stack",
+      "description": "Stacked branch management skill for the stack CLI"
+    }
+  ]
+}

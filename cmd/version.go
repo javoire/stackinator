@@ -17,6 +17,9 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Long:  `Print the version, commit hash, and build date of this stack binary.`,
+	Annotations: map[string]string{
+		"skipGitValidation": "true",
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("stack version %s\n", version)
 		fmt.Printf("  commit: %s\n", commit)
