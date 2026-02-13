@@ -105,6 +105,25 @@ Or use the interactive helper:
 stack config set
 ```
 
+## Claude Code Skill
+
+Stackinator includes a [Claude Code](https://claude.ai/code) skill that teaches Claude how to manage stacked branches.
+
+### Quick install
+
+```bash
+stack skill install
+```
+
+### Manual install
+
+In Claude Code, run:
+
+```
+/plugin marketplace add javoire/stackinator
+/plugin install stack@stackinator
+```
+
 ## Documentation
 
 - [How It Works](docs/how-it-works.md) - Stack tracking and sync algorithm

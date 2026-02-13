@@ -1,0 +1,5 @@
+{
+  "name": "stack",
+  "description": "Stacked branch management skill for the stack CLI",
+  "version": "1.0.0"
+}

@@ -154,6 +154,16 @@ Flags:
 
 - `--prune` - Remove worktrees for branches with merged PRs
 
+## `stack skill install`
+
+Install the Claude Code skill so Claude knows how to use the stack CLI.
+
+Requires the [Claude Code CLI](https://claude.ai/code) to be installed.
+
+```bash
+stack skill install
+```
+
 ## `stack version`
 
 Print version information.

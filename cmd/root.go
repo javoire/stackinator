@@ -54,6 +54,11 @@ The tool helps you create, navigate, and sync stacked branches with minimal over
 		// Set color output flag
 		ui.SetNoColor(noColor)
 
+		// Skip git validation for commands that don't need it
+		if cmd.Annotations["skipGitValidation"] == "true" {
+			return
+		}
+
 		// Validate we're in a git repository
 		gitClient := git.NewGitClient()
 		if _, err := gitClient.GetRepoRoot(); err != nil {
