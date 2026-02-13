@@ -840,10 +840,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 		}
 	}
 
-	// Return to original branch
-	fmt.Printf("Returning to %s...\n", ui.Branch(originalBranch))
-	if err := gitClient.CheckoutBranch(originalBranch); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
+	// Return to original branch if needed
+	currentBranch, err := gitClient.GetCurrentBranch()
+	if err == nil && currentBranch != originalBranch {
+		fmt.Printf("Returning to %s...\n", ui.Branch(originalBranch))
+		if err := gitClient.CheckoutBranch(originalBranch); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
+		}
 	}
 
 	// Display the updated stack status (reuse prCache to avoid redundant API call)
