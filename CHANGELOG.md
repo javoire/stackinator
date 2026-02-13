@@ -1,3 +1,9 @@
+## [1.16.3](https://github.com/javoire/stackinator/compare/v1.16.2...v1.16.3) (2026-02-13)
+
+### Bug Fixes
+
+* **sync:** skip redundant "Returning to" message when already on branch ([#65](https://github.com/javoire/stackinator/issues/65)) ([9ebd3a0](https://github.com/javoire/stackinator/commit/9ebd3a06347a9393719afb6b2ba2716c0c1cdfa0))
+
 ## [1.16.2](https://github.com/javoire/stackinator/compare/v1.16.1...v1.16.2) (2026-02-13)
 
 ### Bug Fixes
