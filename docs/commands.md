@@ -156,9 +156,13 @@ Flags:
 
 ## `stack skill install`
 
-Install the Claude Code skill so Claude knows how to use the stack CLI.
+Install the stack skill for AI coding tools so they know how to use the stack CLI.
 
-Requires the [Claude Code CLI](https://claude.ai/code) to be installed.
+Automatically detects which supported tools are installed and installs for all of them:
+
+- **Claude Code** - via plugin marketplace (`claude` CLI required)
+- **Codex** - writes `SKILL.md` to `~/.agents/skills/stack/` (`codex` CLI required)
+- **Cursor** - writes `stack.mdc` to `~/.cursor/rules/` (`cursor` CLI or `~/.cursor/` directory required)
 
 ```bash
 stack skill install

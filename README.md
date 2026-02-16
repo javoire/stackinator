@@ -105,24 +105,15 @@ Or use the interactive helper:
 stack config set
 ```
 
-## Claude Code Skill
+## AI Coding Tools
 
-Stackinator includes a [Claude Code](https://claude.ai/code) skill that teaches Claude how to manage stacked branches.
-
-### Quick install
+Stackinator includes a skill that teaches AI coding tools how to manage stacked branches. Supported tools: [Claude Code](https://claude.ai/code), [Codex](https://openai.com/index/introducing-codex/), and [Cursor](https://cursor.com/).
 
 ```bash
 stack skill install
 ```
 
-### Manual install
-
-In Claude Code, run:
-
-```
-/plugin marketplace add javoire/stackinator
-/plugin install stack@stackinator
-```
+This auto-detects which tools are installed and installs the skill for all of them.
 
 ## Documentation
 

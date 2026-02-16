@@ -2,31 +2,73 @@ package cmd
 
 import (
 	"os"
-	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestRunSkillInstall_ClaudeNotFound(t *testing.T) {
-	// Set PATH to empty so claude can't be found
-	originalPath := os.Getenv("PATH")
+func TestRunSkillInstall_NoToolsFound(t *testing.T) {
 	t.Setenv("PATH", "")
-	defer func() { os.Setenv("PATH", originalPath) }()
+	t.Setenv("HOME", t.TempDir())
 
-	// Clear the exec.LookPath cache by ensuring fresh lookup
 	err := runSkillInstall()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "claude CLI not found")
+	assert.Contains(t, err.Error(), "no supported AI coding tools found")
 }
 
-func TestRunSkillInstall_ClaudeFound(t *testing.T) {
-	// Skip if claude is not installed
-	if _, err := exec.LookPath("claude"); err != nil {
-		t.Skip("claude CLI not installed, skipping integration test")
-	}
+func TestInstallCodex(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
-	// This would actually run the commands, so we just verify claude is found
-	// A full integration test would require mocking exec.Command
-	t.Log("claude CLI found in PATH")
+	err := installCodex()
+	require.NoError(t, err)
+
+	dest := filepath.Join(home, ".agents", "skills", "stack", "SKILL.md")
+	content, err := os.ReadFile(dest)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "name: stack")
+	assert.Contains(t, string(content), "## Common Commands")
+}
+
+func TestInstallCursor(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	err := installCursor()
+	require.NoError(t, err)
+
+	dest := filepath.Join(home, ".cursor", "rules", "stack.mdc")
+	content, err := os.ReadFile(dest)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "alwaysApply: true")
+	assert.Contains(t, string(content), "description:")
+	assert.Contains(t, string(content), "## Common Commands")
+	// Should not contain SKILL.md frontmatter
+	assert.NotContains(t, string(content), "name: stack")
+}
+
+func TestSkillBody(t *testing.T) {
+	body := skillBody()
+	assert.False(t, strings.HasPrefix(body, "---"))
+	assert.Contains(t, body, "## Common Commands")
+}
+
+func TestDetectCursor_WithDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", "")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".cursor"), 0755))
+	assert.True(t, detectCursor())
+}
+
+func TestDetectCursor_NothingFound(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", "")
+
+	assert.False(t, detectCursor())
 }
