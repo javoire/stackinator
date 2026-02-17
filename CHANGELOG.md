@@ -1,3 +1,9 @@
+## [1.17.1](https://github.com/javoire/stackinator/compare/v1.17.0...v1.17.1) (2026-02-17)
+
+### Bug Fixes
+
+* **sync:** switch to base branch when current branch was merged ([#69](https://github.com/javoire/stackinator/issues/69)) ([ae29662](https://github.com/javoire/stackinator/commit/ae29662aad7784cccb38e7a51066fe95cacf3251))
+
 ## [1.17.0](https://github.com/javoire/stackinator/compare/v1.16.4...v1.17.0) (2026-02-13)
 
 ### Features
