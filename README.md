@@ -115,6 +115,15 @@ stack skill install
 
 This auto-detects which tools are installed and installs the skill for all of them.
 
+### Manual install
+
+For Claude Code, run:
+
+```
+/plugin marketplace add javoire/stackinator
+/plugin install stack@stackinator
+```
+
 ## Documentation
 
 - [How It Works](docs/how-it-works.md) - Stack tracking and sync algorithm
