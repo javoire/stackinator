@@ -98,6 +98,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	var originalBranch string
 	stashed := false
 	rebaseConflict := false
+	originalBranchMerged := false
 
 	// Check for existing sync state (from previous interrupted sync)
 	savedStashed := gitClient.GetConfig(configSyncStashed)
@@ -454,6 +455,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 				fmt.Fprintf(os.Stderr, "  Warning: failed to remove stack config: %v\n", err)
 			} else {
 				fmt.Printf("  %s Removed. You can delete this branch with: %s\n", ui.SuccessIcon(), ui.Command(fmt.Sprintf("git branch -d %s", branch.Name)))
+			}
+			if branch.Name == originalBranch {
+				originalBranchMerged = true
 			}
 			fmt.Println()
 			continue
@@ -842,7 +846,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 	// Return to original branch if needed
 	currentBranch, err := gitClient.GetCurrentBranch()
-	if err == nil && currentBranch != originalBranch {
+	if originalBranchMerged {
+		if currentBranch != baseBranch {
+			if err := gitClient.CheckoutBranch(baseBranch); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to switch to %s: %v\n", baseBranch, err)
+			}
+		}
+		fmt.Printf("Switched to %s (%s was merged)\n", ui.Branch(baseBranch), ui.Branch(originalBranch))
+	} else if err == nil && currentBranch != originalBranch {
 		fmt.Printf("Returning to %s...\n", ui.Branch(originalBranch))
 		if err := gitClient.CheckoutBranch(originalBranch); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to return to original branch: %v\n", err)
