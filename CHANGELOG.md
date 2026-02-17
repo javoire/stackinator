@@ -1,3 +1,9 @@
+## [1.18.0](https://github.com/javoire/stackinator/compare/v1.17.1...v1.18.0) (2026-02-17)
+
+### Features
+
+* **skill:** support Codex and Cursor in `stack skill install` ([#68](https://github.com/javoire/stackinator/issues/68)) ([2a29589](https://github.com/javoire/stackinator/commit/2a295899c6da9d2d12d8afcb3ef4b3e412870a1c))
+
 ## [1.17.1](https://github.com/javoire/stackinator/compare/v1.17.0...v1.17.1) (2026-02-17)
 
 ### Bug Fixes
