@@ -209,14 +209,19 @@ func (c *gitClient) RebaseOnto(newBase, oldBase, currentBranch string) error {
 
 // FetchBranch fetches a specific branch from origin to update tracking info
 func (c *gitClient) FetchBranch(branch string) error {
+	return c.FetchBranchFromRemote("origin", branch)
+}
+
+// FetchBranchFromRemote fetches a specific branch from the given remote to update tracking info
+func (c *gitClient) FetchBranchFromRemote(remote, branch string) error {
 	// Use refspec to ensure the tracking ref is created/updated
-	// git fetch origin <branch> alone only updates FETCH_HEAD, not refs/remotes/origin/<branch>
-	refspec := fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)
+	// git fetch <remote> <branch> alone only updates FETCH_HEAD, not refs/remotes/<remote>/<branch>
+	refspec := fmt.Sprintf("+refs/heads/%s:refs/remotes/%s/%s", branch, remote, branch)
 	if DryRun {
-		fmt.Printf("  [DRY RUN] git fetch origin %s\n", refspec)
+		fmt.Printf("  [DRY RUN] git fetch %s %s\n", remote, refspec)
 		return nil
 	}
-	_, err := c.runCmd("fetch", "origin", refspec)
+	_, err := c.runCmd("fetch", remote, refspec)
 	return err
 }
 
@@ -276,12 +281,23 @@ func (c *gitClient) IsWorkingTreeClean() (bool, error) {
 
 // Fetch fetches from origin
 func (c *gitClient) Fetch() error {
+	return c.FetchRemote("origin")
+}
+
+// FetchRemote fetches from the specified remote
+func (c *gitClient) FetchRemote(remote string) error {
 	if DryRun {
-		fmt.Printf("  [DRY RUN] git fetch origin\n")
+		fmt.Printf("  [DRY RUN] git fetch %s\n", remote)
 		return nil
 	}
-	_, err := c.runCmd("fetch", "origin")
+	_, err := c.runCmd("fetch", remote)
 	return err
+}
+
+// RemoteExists checks if a remote with the given name is configured
+func (c *gitClient) RemoteExists(name string) bool {
+	output := c.runCmdMayFail("remote", "get-url", name)
+	return output != ""
 }
 
 // FastForwardToRemote fast-forwards the current branch to match origin/<branch>

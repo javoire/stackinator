@@ -41,7 +41,7 @@ func TestRunSyncBasic(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 		// Parallel operations
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 		// Check if any branches in the current stack are in worktrees
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -58,7 +58,7 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		// Patch-based unique commit detection
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
@@ -85,7 +85,7 @@ func TestRunSyncBasic(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -120,7 +120,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 
 		// Parallel operations
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 
 		// Parent PR is merged
 		prCache := map[string]*github.PRInfo{
@@ -145,7 +145,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
 		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
 		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("RebaseOnto", "origin/main", "feature-a", "feature-b").Return(nil)
 		mockGit.On("FetchBranch", "feature-b").Return(nil)
 		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
@@ -156,7 +156,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -191,7 +191,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe() // Called in GetStackChain, TopologicalSort, and displayStatusAfterSync
 
 		// Parallel operations
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 
 		// PRs with mismatched base
 		prCache := map[string]*github.PRInfo{
@@ -212,7 +212,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -240,7 +240,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -279,7 +279,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -293,7 +293,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -308,7 +308,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -341,7 +341,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -354,7 +354,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -362,7 +362,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("Rebase", "origin/main").Return(fmt.Errorf("rebase conflict"))
 		// Note: StashPop is NOT called because rebaseConflict=true
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.Error(t, err)
 		mockGit.AssertExpectations(t)
@@ -395,7 +395,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -408,7 +408,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -416,7 +416,7 @@ func TestRunSyncErrorHandling(t *testing.T) {
 		mockGit.On("Rebase", "origin/main").Return(fmt.Errorf("rebase conflict"))
 		// Note: StashPop is NOT called because rebaseConflict=true
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.Error(t, err)
 		mockGit.AssertExpectations(t)
@@ -477,12 +477,12 @@ func TestRunSyncNoStackBranches(t *testing.T) {
 	mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
 	// When there are no stack branches, code returns early after parallel ops
-	mockGit.On("Fetch").Return(nil).Maybe()
+	mockGit.On("FetchRemote", "origin").Return(nil).Maybe()
 	mockGit.On("FastForwardToRemote", "main").Return(nil).Maybe()
 
 	// These calls don't happen when there are no stack branches (early return)
 
-	err := runSync(mockGit, mockGH)
+	err := runSync(mockGit, mockGH, "origin")
 
 	assert.NoError(t, err)
 }
@@ -503,7 +503,7 @@ func TestRunSyncResume(t *testing.T) {
 		syncResume = true
 		defer func() { syncResume = false }()
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no interrupted sync to resume")
@@ -530,7 +530,7 @@ func TestRunSyncResume(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -544,7 +544,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -562,7 +562,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -597,7 +597,7 @@ func TestRunSyncResume(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -611,7 +611,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil) // Fetch base branch before rebase
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil) // Fetch base branch before rebase
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -625,7 +625,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -646,7 +646,7 @@ func TestRunSyncResume(t *testing.T) {
 
 		// User declined, so sync should abort without calling any other methods
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		// Should return nil (not an error) since user chose to abort
 		assert.NoError(t, err)
@@ -684,7 +684,7 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		mockGit.On("SetConfig", "branch.feature-a.stackparent", "main").Return(nil)
 
 		// Parallel operations
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 
 		// Worktree checks
@@ -700,7 +700,7 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil)
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil)
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
 		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
 		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
@@ -725,7 +725,7 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -763,7 +763,7 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		}
 		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
 		// Parallel operations
-		mockGit.On("Fetch").Return(nil)
+		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
 		// Check if any branches in the current stack are in worktrees
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -777,7 +777,7 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
 		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
 		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
-		mockGit.On("FetchBranch", "main").Return(nil)
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil)
 		// GetUniqueCommitsByPatch returns empty slice - no unique commits
 		// But Rebase should STILL be called to incorporate target updates
 		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{}, nil)
@@ -790,7 +790,7 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -818,7 +818,7 @@ func TestRunSyncAbort(t *testing.T) {
 		syncAbort = true
 		defer func() { syncAbort = false }()
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no interrupted sync to abort")
@@ -851,7 +851,7 @@ func TestRunSyncAbort(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -884,7 +884,7 @@ func TestRunSyncAbort(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
@@ -915,10 +915,105 @@ func TestRunSyncAbort(t *testing.T) {
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
 
-		err := runSync(mockGit, mockGH)
+		err := runSync(mockGit, mockGH, "origin")
 
 		assert.NoError(t, err)
 		mockGit.AssertExpectations(t)
 		mockGH.AssertExpectations(t)
+	})
+}
+
+func TestRunSyncWithUpstreamRemote(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("sync uses upstream remote for base branch fetch and rebase", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: Check for existing sync state (none)
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		// Setup: Get current branch
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+		// Save original branch state
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-a").Return(nil)
+		// Check working tree
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		// Get base branch
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+		// Get stack chain
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+		// Parallel operations: fetch from upstream (not origin)
+		mockGit.On("FetchRemote", "upstream").Return(nil)
+		// Also fetch origin since syncRemote != "origin"
+		mockGit.On("Fetch").Return(nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Worktree checks
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		// Get remote branches (from origin)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+		// Process feature-a: base branch uses upstream remote
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranchFromRemote", "upstream", "main").Return(nil) // Fetch from upstream!
+		mockGit.On("GetUniqueCommitsByPatch", "upstream/main", "feature-a").Return([]string{"abc123"}, nil)
+		mockGit.On("GetMergeBase", "feature-a", "upstream/main").Return("main123", nil)
+		mockGit.On("GetCommitHash", "upstream/main").Return("main123", nil)
+		mockGit.On("Rebase", "upstream/main").Return(nil) // Rebase onto upstream/main
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil) // Push to origin
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+
+		err := runSync(mockGit, mockGH, "upstream")
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+}
+
+func TestDetermineSyncRemote(t *testing.T) {
+	t.Run("uses CLI arg when provided", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		result := determineSyncRemote(mockGit, []string{"upstream"})
+		assert.Equal(t, "upstream", result)
+	})
+
+	t.Run("uses git config when set", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGit.On("GetConfig", "stack.fetchRemote").Return("upstream")
+		result := determineSyncRemote(mockGit, []string{})
+		assert.Equal(t, "upstream", result)
+	})
+
+	t.Run("auto-detects upstream remote", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGit.On("GetConfig", "stack.fetchRemote").Return("")
+		mockGit.On("RemoteExists", "upstream").Return(true)
+		result := determineSyncRemote(mockGit, []string{})
+		assert.Equal(t, "upstream", result)
+	})
+
+	t.Run("falls back to origin", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGit.On("GetConfig", "stack.fetchRemote").Return("")
+		mockGit.On("RemoteExists", "upstream").Return(false)
+		result := determineSyncRemote(mockGit, []string{})
+		assert.Equal(t, "origin", result)
 	})
 }
