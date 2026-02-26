@@ -36,10 +36,10 @@ const (
 )
 
 var syncCmd = &cobra.Command{
-	Use:   "sync",
+	Use:   "sync [remote]",
 	Short: "Sync all stack branches with their parents and update PRs",
 	Long: `Perform a full sync of the stack:
-  1. Fetch latest changes from origin
+  1. Fetch latest changes from the base remote
   2. Rebase each stack branch onto its parent (in bottom-to-top order)
   3. Force push each branch to origin
   4. Update PR base branches to match the stack (if PRs exist)
@@ -49,9 +49,22 @@ This ensures your stack is up-to-date and all PRs have the correct base branches
 If a parent PR has been merged, the child branches will be rebased to point to
 the merged parent's parent.
 
-Uncommitted changes are automatically stashed and reapplied (using --autostash).`,
+Uncommitted changes are automatically stashed and reapplied (using --autostash).
+
+The optional [remote] argument specifies which remote to fetch base branches from.
+This is useful in fork workflows where 'origin' is your fork and 'upstream' is
+the main repo. If not specified, the remote is auto-detected:
+  1. Git config 'stack.fetchRemote' if set
+  2. 'upstream' if it exists as a remote
+  3. 'origin' (default)
+
+Stack branches are always pushed to 'origin'.`,
+	Args: cobra.MaximumNArgs(1),
 	Example: `  # Sync all branches and update PRs
   stack sync
+
+  # Sync fetching base branches from upstream (fork workflow)
+  stack sync upstream
 
   # Preview what would happen
   stack sync --dry-run
@@ -73,10 +86,11 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
   stack sync`,
 	Run: func(cmd *cobra.Command, args []string) {
 		gitClient := git.NewGitClient()
-		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL("origin"))
+		syncRemote := determineSyncRemote(gitClient, args)
+		repo := github.ParseRepoFromURL(gitClient.GetRemoteURL(syncRemote))
 		githubClient := github.NewGitHubClient(repo)
 
-		if err := runSync(gitClient, githubClient); err != nil {
+		if err := runSync(gitClient, githubClient, syncRemote); err != nil {
 			// Don't print if error was already displayed with detailed message
 			if !errors.Is(err, errAlreadyPrinted) {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -86,6 +100,25 @@ Uncommitted changes are automatically stashed and reapplied (using --autostash).
 	},
 }
 
+// determineSyncRemote determines which remote to use for fetching base branches.
+// Priority: CLI arg > git config stack.fetchRemote > auto-detect upstream > origin
+func determineSyncRemote(gitClient git.GitClient, args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+
+	if configured := gitClient.GetConfig("stack.fetchRemote"); configured != "" {
+		return configured
+	}
+
+	if gitClient.RemoteExists("upstream") {
+		fmt.Println("Using 'upstream' remote for base branches (detected automatically)")
+		return "upstream"
+	}
+
+	return "origin"
+}
+
 func init() {
 	syncCmd.Flags().BoolVarP(&syncForce, "force", "f", false, "Use --force instead of --force-with-lease for push (bypasses safety checks)")
 	syncCmd.Flags().BoolVarP(&syncResume, "resume", "r", false, "Resume a sync after resolving rebase conflicts")
@@ -93,7 +126,7 @@ func init() {
 	syncCmd.Flags().BoolVar(&syncCherryPick, "cherry-pick", false, "Rebuild polluted branches by cherry-picking unique commits (creates backup)")
 }
 
-func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
+func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemote string) error {
 	// Track state for stash handling
 	var originalBranch string
 	stashed := false
@@ -276,11 +309,16 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 	// Start git fetch in parallel (the slowest network operation)
 	var wg sync.WaitGroup
 	var fetchErr error
+	var originFetchErr error
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fetchErr = gitClient.Fetch()
+		fetchErr = gitClient.FetchRemote(syncRemote)
+		// If fetching from a non-origin remote, also fetch origin to get its branches
+		if syncRemote != "origin" {
+			originFetchErr = gitClient.Fetch()
+		}
 	}()
 
 	// While network operations run in background, do local work
@@ -420,7 +458,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 	// Wait for git fetch and fetch PRs in parallel for stack branches only
 	var prCache map[string]*github.PRInfo
-	if err := spinner.WrapWithSuccess("Fetching from origin and loading PRs...", "Fetched from origin and loaded PRs", func() error {
+	fetchMsg := fmt.Sprintf("Fetching from %s and loading PRs...", syncRemote)
+	fetchDoneMsg := fmt.Sprintf("Fetched from %s and loaded PRs", syncRemote)
+	if err := spinner.WrapWithSuccess(fetchMsg, fetchDoneMsg, func() error {
 		wg.Wait()
 		prCache = githubClient.GetPRsForBranches(prBranches)
 		return nil
@@ -430,7 +470,10 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 
 	// Check for fetch errors
 	if fetchErr != nil {
-		return fmt.Errorf("failed to fetch: %w", fetchErr)
+		return fmt.Errorf("failed to fetch from %s: %w", syncRemote, fetchErr)
+	}
+	if originFetchErr != nil {
+		return fmt.Errorf("failed to fetch from origin: %w", originFetchErr)
 	}
 
 	// Get all remote branches in one call (more efficient than checking each branch individually)
@@ -567,20 +610,20 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient) error {
 			}
 		}
 
-		// Determine rebase target: origin/<parent> for base branches, local for stack branches
+		// Determine rebase target: <remote>/<parent> for base branches, local for stack branches
 		rebaseTarget := branch.Parent
 		if !stackBranchSet[branch.Parent] {
-			// Parent is not a stack branch, so it's a base branch - use origin/<parent>
-			rebaseTarget = "origin/" + branch.Parent
+			// Parent is not a stack branch, so it's a base branch - use <syncRemote>/<parent>
+			rebaseTarget = syncRemote + "/" + branch.Parent
 
 			// Explicitly fetch the base branch to ensure tracking ref is up to date
-			// This is needed because 'git fetch origin' may not always update tracking refs
+			// This is needed because 'git fetch <remote>' may not always update tracking refs
 			// reliably (e.g., repos with limited refspecs or certain git configurations)
-			if err := gitClient.FetchBranch(branch.Parent); err != nil {
+			if err := gitClient.FetchBranchFromRemote(syncRemote, branch.Parent); err != nil {
 				// Non-fatal: continue with potentially stale ref, rebase will still work
 				// but might not include latest changes from the base branch
 				if git.Verbose {
-					fmt.Printf("  Note: could not fetch %s: %v\n", branch.Parent, err)
+					fmt.Printf("  Note: could not fetch %s from %s: %v\n", branch.Parent, syncRemote, err)
 				}
 			}
 		}

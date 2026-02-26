@@ -17,6 +17,9 @@ type GitClient interface {
 	Rebase(onto string) error
 	RebaseOnto(newBase, oldBase, currentBranch string) error
 	FetchBranch(branch string) error
+	FetchRemote(remote string) error
+	FetchBranchFromRemote(remote, branch string) error
+	RemoteExists(name string) bool
 	Push(branch string, forceWithLease bool) error
 	PushWithExpectedRemote(branch string, expectedRemoteSha string) error
 	ForcePush(branch string) error

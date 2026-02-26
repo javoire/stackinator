@@ -85,6 +85,21 @@ func (m *MockGitClient) FetchBranch(branch string) error {
 	return args.Error(0)
 }
 
+func (m *MockGitClient) FetchRemote(remote string) error {
+	args := m.Called(remote)
+	return args.Error(0)
+}
+
+func (m *MockGitClient) FetchBranchFromRemote(remote, branch string) error {
+	args := m.Called(remote, branch)
+	return args.Error(0)
+}
+
+func (m *MockGitClient) RemoteExists(name string) bool {
+	args := m.Called(name)
+	return args.Bool(0)
+}
+
 func (m *MockGitClient) Push(branch string, forceWithLease bool) error {
 	args := m.Called(branch, forceWithLease)
 	return args.Error(0)
