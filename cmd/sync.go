@@ -426,23 +426,19 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		currentWorktreePath = ""
 	}
 
+	worktreeSkipSet := make(map[string]string)
 	for _, branch := range sorted {
 		if worktreePath, inWorktree := worktrees[branch.Name]; inWorktree {
-			// Only error if we're NOT already in this worktree
 			if currentWorktreePath != worktreePath {
-				return fmt.Errorf(
-					"cannot sync: branch '%s' is checked out in worktree at %s\n\n"+
-						"To sync this stack:\n"+
-						"  1. cd %s\n"+
-						"  2. stack sync\n\n"+
-						"Or remove the worktree: git worktree remove %s",
-					branch.Name,
-					worktreePath,
-					worktreePath,
-					worktreePath,
-				)
+				worktreeSkipSet[branch.Name] = worktreePath
 			}
 		}
+	}
+	if len(worktreeSkipSet) > 0 {
+		for name, path := range worktreeSkipSet {
+			fmt.Fprintf(os.Stderr, "%s Skipping %s (checked out in worktree at %s)\n", ui.WarningIcon(), ui.Branch(name), path)
+		}
+		fmt.Println()
 	}
 
 	// Collect all branches we need PR info for (stack branches + their parents)
@@ -488,6 +484,12 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 	// Process each branch
 	for i, branch := range sorted {
 		progress := ui.Progress(i+1, len(sorted))
+
+		// Skip branches checked out in other worktrees
+		if worktreePath, skip := worktreeSkipSet[branch.Name]; skip {
+			fmt.Printf("%s Skipping %s (checked out in %s)\n\n", progress, ui.Branch(branch.Name), worktreePath)
+			continue
+		}
 
 		// Check if this branch has a merged PR - if so, remove from stack tracking
 		if pr, exists := prCache[branch.Name]; exists && pr.State == "MERGED" {
