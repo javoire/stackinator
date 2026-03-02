@@ -1017,3 +1017,86 @@ func TestDetermineSyncRemote(t *testing.T) {
 		assert.Equal(t, "origin", result)
 	})
 }
+
+func TestRunSyncSkipsWorktreeBranches(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("skips branch checked out in another worktree", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: no existing sync state
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		mockGit.On("GetCurrentBranch").Return("feature-c", nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-c").Return(nil)
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		mockGit.On("GetConfig", "branch.feature-c.stackparent").Return("feature-b")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+			"feature-b": "feature-a",
+			"feature-c": "feature-b",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		// Parallel operations
+		mockGit.On("FetchRemote", "origin").Return(nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+
+		// feature-b is in another worktree
+		mockGit.On("GetWorktreeBranches").Return(map[string]string{
+			"feature-b": "/other/worktree",
+		}, nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+			"feature-b": true,
+			"feature-c": true,
+		})
+
+		// Process feature-a (not skipped)
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("aaa111", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("aaa111", nil)
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil)
+		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"aaa111"}, nil)
+		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
+		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "aaa111").Return(nil)
+
+		// feature-b is SKIPPED (in another worktree) - no checkout/rebase/push calls
+
+		// Process feature-c (not skipped)
+		mockGit.On("CheckoutBranch", "feature-c").Return(nil)
+		mockGit.On("GetCommitHash", "feature-c").Return("ccc333", nil)
+		mockGit.On("GetCommitHash", "origin/feature-c").Return("ccc333", nil)
+		mockGit.On("GetUniqueCommitsByPatch", "feature-b", "feature-c").Return([]string{"ccc333"}, nil)
+		mockGit.On("GetMergeBase", "feature-c", "feature-b").Return("bbb222", nil)
+		mockGit.On("GetCommitHash", "feature-b").Return("bbb222", nil)
+		mockGit.On("Rebase", "feature-b").Return(nil)
+		mockGit.On("FetchBranch", "feature-c").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-c", "ccc333").Return(nil)
+
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-c").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+
+		err := runSync(mockGit, mockGH, "origin")
+
+		assert.NoError(t, err)
+		// Verify feature-b was never checked out
+		mockGit.AssertNotCalled(t, "CheckoutBranch", "feature-b")
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+}
