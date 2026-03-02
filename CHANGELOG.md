@@ -1,3 +1,13 @@
+## [1.19.0](https://github.com/javoire/stackinator/compare/v1.18.0...v1.19.0) (2026-03-02)
+
+### Features
+
+* **sync:** support configurable remote for fork workflows ([#70](https://github.com/javoire/stackinator/issues/70)) ([a2f292d](https://github.com/javoire/stackinator/commit/a2f292dd9610e67c788b48b4949f5f70c1e1db76))
+
+### Bug Fixes
+
+* **sync:** skip branches checked out in other worktrees instead of aborting ([#71](https://github.com/javoire/stackinator/issues/71)) ([fb0fd4f](https://github.com/javoire/stackinator/commit/fb0fd4f47d8cdd9f2e24f2952b2924a2e70a2005))
+
 ## [1.18.0](https://github.com/javoire/stackinator/compare/v1.17.1...v1.18.0) (2026-02-17)
 
 ### Features
