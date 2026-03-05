@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -929,10 +931,95 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 	_ = gitClient.UnsetConfig(configSyncStashed)
 	_ = gitClient.UnsetConfig(configSyncOriginalBranch)
 
+	// Run post-sync install if a package manager is detected
+	runPostSyncInstall(gitClient)
+
 	fmt.Println()
 	fmt.Println(ui.Success("Sync complete!"))
 
 	return nil
+}
+
+// packageManager maps a lockfile name to its install command.
+type packageManager struct {
+	lockfile string
+	command  string
+	args     []string
+}
+
+var packageManagers = []packageManager{
+	{"pnpm-lock.yaml", "pnpm", []string{"install"}},
+	{"yarn.lock", "yarn", []string{"install"}},
+	{"bun.lockb", "bun", []string{"install"}},
+	{"bun.lock", "bun", []string{"install"}},
+	{"package-lock.json", "npm", []string{"install"}},
+}
+
+// detectPackageManager checks for lockfiles in the given directory and returns
+// the matching package manager, or nil if none found.
+func detectPackageManager(repoRoot string) *packageManager {
+	for _, pm := range packageManagers {
+		if _, err := os.Stat(filepath.Join(repoRoot, pm.lockfile)); err == nil {
+			return &pm
+		}
+	}
+	return nil
+}
+
+// runPostSyncInstall detects a package manager and runs install after sync.
+// Configurable via git config stack.postSyncInstall:
+//   - not set / "auto": auto-detect from lockfiles
+//   - "false": disabled
+//   - any other value: treated as custom command
+func runPostSyncInstall(gitClient git.GitClient) {
+	config := gitClient.GetConfig("stack.postSyncInstall")
+	if config == "false" {
+		return
+	}
+
+	repoRoot, err := gitClient.GetRepoRoot()
+	if err != nil {
+		return
+	}
+
+	var cmdName string
+	var cmdArgs []string
+
+	if config != "" && config != "auto" {
+		// Custom command from config
+		parts := strings.Fields(config)
+		cmdName = parts[0]
+		cmdArgs = parts[1:]
+	} else {
+		// Auto-detect from lockfiles
+		if pm := detectPackageManager(repoRoot); pm != nil {
+			cmdName = pm.command
+			cmdArgs = pm.args
+		}
+	}
+
+	if cmdName == "" {
+		return
+	}
+
+	fullCmd := cmdName + " " + strings.Join(cmdArgs, " ")
+
+	if git.DryRun {
+		fmt.Printf("\n  [DRY RUN] %s\n", fullCmd)
+		return
+	}
+
+	fmt.Println()
+	_ = spinner.WrapWithSuccess(
+		fmt.Sprintf("Running %s...", fullCmd),
+		fmt.Sprintf("Ran %s", fullCmd),
+		func() error {
+			cmd := exec.Command(cmdName, cmdArgs...)
+			cmd.Dir = repoRoot
+			cmd.Env = os.Environ()
+			return cmd.Run()
+		},
+	)
 }
 
 // displayStatusAfterSync shows the stack tree after a successful sync
