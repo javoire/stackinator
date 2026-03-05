@@ -44,6 +44,8 @@ func TestRunSyncBasic(t *testing.T) {
 		// Parallel operations
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 		// Check if any branches in the current stack are in worktrees
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -129,6 +131,8 @@ func TestRunSyncMergedParent(t *testing.T) {
 			"feature-a": testutil.NewPRInfo(1, "MERGED", "main", "Feature A", "url"),
 		}
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(prCache)
+		// Git-based merge detection fallback (for branches without PRs)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -285,6 +289,8 @@ func TestRunSyncStashHandling(t *testing.T) {
 
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -348,6 +354,8 @@ func TestRunSyncErrorHandling(t *testing.T) {
 
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -402,6 +410,8 @@ func TestRunSyncErrorHandling(t *testing.T) {
 
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -537,6 +547,8 @@ func TestRunSyncResume(t *testing.T) {
 
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -606,6 +618,8 @@ func TestRunSyncResume(t *testing.T) {
 
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -694,6 +708,8 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		// Parallel operations
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		// Worktree checks
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
@@ -774,6 +790,8 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		// Parallel operations
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 		// Check if any branches in the current stack are in worktrees
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -967,6 +985,8 @@ func TestRunSyncWithUpstreamRemote(t *testing.T) {
 		// Also fetch origin since syncRemote != "origin"
 		mockGit.On("Fetch").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 		// Worktree checks
 		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
 		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
@@ -1060,6 +1080,8 @@ func TestRunSyncSkipsWorktreeBranches(t *testing.T) {
 		// Parallel operations
 		mockGit.On("FetchRemote", "origin").Return(nil)
 		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 
 		// feature-b is in another worktree
 		mockGit.On("GetWorktreeBranches").Return(map[string]string{
@@ -1173,5 +1195,144 @@ func TestRunPostSyncInstall(t *testing.T) {
 		detected := detectPackageManager(dir)
 		assert.NotNil(t, detected)
 		assert.Equal(t, "pnpm", detected.command)
+	})
+}
+
+func TestRunSyncGitBasedMergeDetection(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("removes branch from stack when merged via git history (no PR)", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: no existing sync state
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		mockGit.On("GetCurrentBranch").Return("feature-b", nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-b").Return(nil)
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		mockGit.On("GetConfig", "branch.feature-b.stackparent").Return("feature-a")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+			"feature-b": "feature-a",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		// No PRs found at all
+		mockGit.On("FetchRemote", "origin").Return(nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+			"feature-b": true,
+		})
+
+		// feature-a: no PR, but IsAncestor returns true → merged via git history
+		mockGit.On("IsAncestor", "feature-a", "origin/main").Return(true, nil)
+		// Remove feature-a from stack
+		mockGit.On("UnsetConfig", "branch.feature-a.stackparent").Return(nil)
+
+		// feature-b: no PR, not merged via git
+		mockGit.On("IsAncestor", "feature-b", "origin/main").Return(false, nil)
+
+		// feature-b's parent (feature-a) has no PR, parent merged via git
+		// IsAncestor("feature-a", "origin/main") already mocked above → true
+
+		// Reparent feature-b from feature-a to main
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("SetConfig", "branch.feature-b.stackparent", "main").Return(nil)
+		// Also remove parent from stack tracking (called again for parent cleanup)
+		mockGit.On("UnsetConfig", "branch.feature-a.stackparent").Return(nil)
+
+		// Process feature-b: checkout, rebase onto origin/main (new parent)
+		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
+		mockGit.On("GetCommitHash", "feature-b").Return("def456", nil)
+		mockGit.On("GetCommitHash", "origin/feature-b").Return("def456", nil)
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil)
+		// --onto rebase since parent was merged
+		mockGit.On("RebaseOnto", "origin/main", "feature-a", "feature-b").Return(nil)
+		mockGit.On("FetchBranch", "feature-b").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-b", "def456").Return(nil)
+
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-b").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
+
+		err := runSync(mockGit, mockGH, "origin")
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+
+	t.Run("branch not merged via git is processed normally", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: no existing sync state
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-a").Return(nil)
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		// No PRs found
+		mockGit.On("FetchRemote", "origin").Return(nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+		// Git-based merge detection (no branches are merged)
+		mockGit.On("IsAncestor", mock.Anything, mock.Anything).Return(false, nil).Maybe()
+
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+
+		// feature-a: no PR, NOT merged via git either
+		mockGit.On("IsAncestor", "feature-a", "origin/main").Return(false, nil)
+
+		// Should process normally (no parent reparenting since parent is baseBranch)
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("abc123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("abc123", nil)
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil)
+		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{"abc123"}, nil)
+		mockGit.On("GetMergeBase", "feature-a", "origin/main").Return("main123", nil)
+		mockGit.On("GetCommitHash", "origin/main").Return("main123", nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "abc123").Return(nil)
+
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
+
+		err := runSync(mockGit, mockGH, "origin")
+
+		assert.NoError(t, err)
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
 	})
 }

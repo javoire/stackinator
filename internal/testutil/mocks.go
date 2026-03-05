@@ -276,6 +276,11 @@ func (m *MockGitClient) GetRemoteURL(remoteName string) string {
 	return args.String(0)
 }
 
+func (m *MockGitClient) IsAncestor(commit, branch string) (bool, error) {
+	args := m.Called(commit, branch)
+	return args.Bool(0), args.Error(1)
+}
+
 // MockGitHubClient is a mock implementation of github.GitHubClient for testing
 type MockGitHubClient struct {
 	mock.Mock
