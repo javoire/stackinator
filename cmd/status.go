@@ -297,6 +297,8 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 		fmt.Printf("Checking %d branch(es) for sync issues...\n", len(stackBranches))
 	}
 
+	baseBranch := stack.GetBaseBranch(gitClient)
+
 	// Check each stack branch for sync issues
 	for i, branch := range stackBranches {
 		progress(fmt.Sprintf("Checking branch %d/%d (%s)...", i+1, len(stackBranches), branch.Name))
@@ -327,8 +329,23 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 			} else if verbose {
 				fmt.Printf("  ✓ PR base matches configured parent\n")
 			}
-		} else if verbose {
-			fmt.Printf("  No PR found for this branch\n")
+		} else {
+			// No PR found — check if branch appears merged via git history
+			if verbose {
+				fmt.Printf("  No PR found, checking git history for merge...\n")
+			}
+			merged, err := gitClient.IsAncestor(branch.Name, "origin/"+baseBranch)
+			if err == nil && merged {
+				if verbose {
+					fmt.Printf("  ✓ Branch appears merged into %s via git history\n", baseBranch)
+				}
+				issues = append(issues, fmt.Sprintf("  - Branch '%s' appears merged into %s (run '%s' to clean up)", ui.Branch(branch.Name), ui.Branch(baseBranch), ui.Command("stack prune")))
+				continue // Skip other checks for merged branches
+			} else if err != nil && verbose {
+				fmt.Printf("  ⚠ Could not check if branch is ancestor: %v\n", err)
+			} else if verbose {
+				fmt.Printf("  No PR found for this branch\n")
+			}
 		}
 
 		// Check if branch is behind its parent (needs rebase) - always check this regardless of PR

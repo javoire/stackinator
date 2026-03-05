@@ -508,6 +508,24 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			}
 			fmt.Println()
 			continue
+		} else if _, exists := prCache[branch.Name]; !exists {
+			// No PR found - check if branch was merged via git history
+			remoteBase := syncRemote + "/" + baseBranch
+			if merged, err := gitClient.IsAncestor(branch.Name, remoteBase); err == nil && merged {
+				fmt.Printf("%s Skipping %s (merged into %s, detected via git history)...\n", progress, ui.Branch(branch.Name), ui.Branch(baseBranch))
+				fmt.Printf("  Removing from stack tracking...\n")
+				configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
+				if err := gitClient.UnsetConfig(configKey); err != nil {
+					fmt.Fprintf(os.Stderr, "  Warning: failed to remove stack config: %v\n", err)
+				} else {
+					fmt.Printf("  %s Removed. You can delete this branch with: %s\n", ui.SuccessIcon(), ui.Command(fmt.Sprintf("git branch -d %s", branch.Name)))
+				}
+				if branch.Name == originalBranch {
+					originalBranchMerged = true
+				}
+				fmt.Println()
+				continue
+			}
 		}
 
 		fmt.Printf("\n%s %s\n", progress, ui.Branch(branch.Name))
@@ -515,11 +533,22 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		// Check if parent PR is merged
 		oldParent := "" // Track old parent for --onto rebase
 		parentPR := prCache[branch.Parent]
+		parentMergedViaGit := false
 		if parentPR != nil && parentPR.State == "MERGED" {
 			fmt.Printf("  Parent PR #%d has been merged\n", parentPR.Number)
-
-			// Save old parent for --onto rebase
 			oldParent = branch.Parent
+		} else if parentPR == nil && branch.Parent != baseBranch {
+			// No PR found for parent - check if parent was merged via git history
+			remoteBase := syncRemote + "/" + baseBranch
+			if merged, err := gitClient.IsAncestor(branch.Parent, remoteBase); err == nil && merged {
+				fmt.Printf("  Parent %s appears merged into %s (detected via git history)\n", ui.Branch(branch.Parent), ui.Branch(baseBranch))
+				oldParent = branch.Parent
+				parentMergedViaGit = true
+			}
+		}
+
+		if oldParent != "" {
+			// Save old parent for --onto rebase
 
 			// Update parent to grandparent
 			grandparent := gitClient.GetConfig(fmt.Sprintf("branch.%s.stackparent", branch.Parent))
@@ -533,6 +562,16 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 				fmt.Fprintf(os.Stderr, "  Warning: failed to update parent config: %v\n", err)
 			} else {
 				branch.Parent = grandparent
+			}
+
+			// If parent was detected as merged via git (no PR), also remove it from stack tracking
+			if parentMergedViaGit {
+				parentConfigKey := fmt.Sprintf("branch.%s.stackparent", oldParent)
+				if err := gitClient.UnsetConfig(parentConfigKey); err != nil {
+					if git.Verbose {
+						fmt.Fprintf(os.Stderr, "  Note: could not remove stack config for %s: %v\n", oldParent, err)
+					}
+				}
 			}
 		}
 

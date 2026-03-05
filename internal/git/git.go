@@ -687,6 +687,25 @@ func (c *gitClient) ListWorktrees() ([]string, error) {
 	return paths, nil
 }
 
+// IsAncestor checks if commit is an ancestor of branch using git merge-base --is-ancestor.
+// Returns true if commit is an ancestor, false if not. Other exit codes return an error.
+func (c *gitClient) IsAncestor(commit, branch string) (bool, error) {
+	if Verbose {
+		fmt.Printf("  [git] merge-base --is-ancestor %s %s\n", commit, branch)
+	}
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, branch)
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+	}
+	return false, fmt.Errorf("git merge-base --is-ancestor %s %s failed: %v", commit, branch, err)
+}
+
 // GetRemoteURL returns the URL of the specified remote (e.g., "origin")
 func (c *gitClient) GetRemoteURL(remoteName string) string {
 	return c.runCmdMayFail("remote", "get-url", remoteName)
