@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -84,6 +85,7 @@ func TestRunSyncBasic(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -155,6 +157,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -239,6 +242,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -307,6 +311,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("StashPop").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -561,6 +566,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("StashPop").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -583,6 +589,7 @@ func TestRunSyncResume(t *testing.T) {
 		// Clean up orphaned state (user confirmed)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
 		// Save original branch state
@@ -624,6 +631,7 @@ func TestRunSyncResume(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -724,6 +732,7 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -789,6 +798,7 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -850,6 +860,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -883,6 +894,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -914,6 +926,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -978,6 +991,7 @@ func TestRunSyncWithUpstreamRemote(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "upstream")
 
@@ -1090,6 +1104,7 @@ func TestRunSyncSkipsWorktreeBranches(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
 
@@ -1098,5 +1113,65 @@ func TestRunSyncSkipsWorktreeBranches(t *testing.T) {
 		mockGit.AssertNotCalled(t, "CheckoutBranch", "feature-b")
 		mockGit.AssertExpectations(t)
 		mockGH.AssertExpectations(t)
+	})
+}
+
+func TestRunPostSyncInstall(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	t.Run("disabled via config", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false")
+
+		// Should return early without calling GetRepoRoot
+		runPostSyncInstall(mockGit)
+
+		mockGit.AssertNotCalled(t, "GetRepoRoot")
+		mockGit.AssertExpectations(t)
+	})
+
+	t.Run("auto-detect with no lockfile", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("")
+		mockGit.On("GetRepoRoot").Return(t.TempDir(), nil)
+
+		// Empty temp dir has no lockfiles, should be a no-op
+		runPostSyncInstall(mockGit)
+
+		mockGit.AssertExpectations(t)
+	})
+
+	t.Run("auto-detect picks correct package manager", func(t *testing.T) {
+		for _, tc := range []struct {
+			lockfile string
+			expected string
+		}{
+			{"pnpm-lock.yaml", "pnpm"},
+			{"yarn.lock", "yarn"},
+			{"bun.lockb", "bun"},
+			{"bun.lock", "bun"},
+			{"package-lock.json", "npm"},
+		} {
+			t.Run(tc.lockfile, func(t *testing.T) {
+				dir := t.TempDir()
+				err := os.WriteFile(filepath.Join(dir, tc.lockfile), []byte{}, 0644)
+				assert.NoError(t, err)
+
+				detected := detectPackageManager(dir)
+				assert.NotNil(t, detected, "expected detection for %s", tc.lockfile)
+				assert.Equal(t, tc.expected, detected.command)
+			})
+		}
+	})
+
+	t.Run("pnpm-lock.yaml wins over yarn.lock", func(t *testing.T) {
+		dir := t.TempDir()
+		_ = os.WriteFile(filepath.Join(dir, "pnpm-lock.yaml"), []byte{}, 0644)
+		_ = os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte{}, 0644)
+
+		detected := detectPackageManager(dir)
+		assert.NotNil(t, detected)
+		assert.Equal(t, "pnpm", detected.command)
 	})
 }
