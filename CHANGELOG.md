@@ -1,3 +1,9 @@
+## [1.21.0](https://github.com/javoire/stackinator/compare/v1.20.0...v1.21.0) (2026-03-05)
+
+### Features
+
+* **sync:** detect merged parent branches via git history ([#74](https://github.com/javoire/stackinator/issues/74)) ([61a1287](https://github.com/javoire/stackinator/commit/61a12875426795ca2cea1706631725e62abda1f3))
+
 ## [1.20.0](https://github.com/javoire/stackinator/compare/v1.19.0...v1.20.0) (2026-03-05)
 
 ### Features
