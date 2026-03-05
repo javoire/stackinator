@@ -118,6 +118,7 @@ func TestDetectSyncIssues(t *testing.T) {
 			},
 			prCache: make(map[string]*github.PRInfo),
 			setupMocks: func(mockGit *testutil.MockGitClient) {
+				mockGit.On("IsAncestor", "feature-a", "origin/main").Return(false, nil)
 				mockGit.On("IsCommitsBehind", "feature-a", "main").Return(true, nil)
 				mockGit.On("RemoteBranchExists", "feature-a").Return(false)
 			},
@@ -130,10 +131,22 @@ func TestDetectSyncIssues(t *testing.T) {
 			},
 			prCache: make(map[string]*github.PRInfo),
 			setupMocks: func(mockGit *testutil.MockGitClient) {
+				mockGit.On("IsAncestor", "feature-a", "origin/main").Return(false, nil)
 				mockGit.On("IsCommitsBehind", "feature-a", "main").Return(false, nil)
 				mockGit.On("RemoteBranchExists", "feature-a").Return(false)
 			},
 			expectedIssues: 0,
+		},
+		{
+			name: "branch merged via git history (no PR)",
+			stackBranches: []stack.StackBranch{
+				{Name: "feature-a", Parent: "main"},
+			},
+			prCache: make(map[string]*github.PRInfo),
+			setupMocks: func(mockGit *testutil.MockGitClient) {
+				mockGit.On("IsAncestor", "feature-a", "origin/main").Return(true, nil)
+			},
+			expectedIssues: 1,
 		},
 	}
 

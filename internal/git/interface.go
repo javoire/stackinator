@@ -54,4 +54,5 @@ type GitClient interface {
 	RemoveWorktree(path string) error
 	ListWorktrees() ([]string, error)
 	GetRemoteURL(remoteName string) string
+	IsAncestor(commit, branch string) (bool, error)
 }
