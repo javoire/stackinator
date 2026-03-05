@@ -1,3 +1,9 @@
+## [1.20.0](https://github.com/javoire/stackinator/compare/v1.19.0...v1.20.0) (2026-03-05)
+
+### Features
+
+* **sync:** auto-run package install after sync ([#72](https://github.com/javoire/stackinator/issues/72)) ([109aa13](https://github.com/javoire/stackinator/commit/109aa13ac298c9b9f809c74d01231861a7233edc))
+
 ## [1.19.0](https://github.com/javoire/stackinator/compare/v1.18.0...v1.19.0) (2026-03-02)
 
 ### Features
