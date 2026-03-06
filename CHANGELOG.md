@@ -1,3 +1,9 @@
+## [1.21.1](https://github.com/javoire/stackinator/compare/v1.21.0...v1.21.1) (2026-03-06)
+
+### Bug Fixes
+
+* **status:** detect merged parent branches and suggest stack sync ([#77](https://github.com/javoire/stackinator/issues/77)) ([5f847b1](https://github.com/javoire/stackinator/commit/5f847b1365351748b80cfbfac2b5f5e9fca68553))
+
 ## [1.21.0](https://github.com/javoire/stackinator/compare/v1.20.0...v1.21.0) (2026-03-05)
 
 ### Features
