@@ -315,6 +315,23 @@ func detectSyncIssues(gitClient git.GitClient, stackBranches []stack.StackBranch
 			continue
 		}
 
+		// Check if parent PR is merged (or parent branch merged via git history)
+		parentPR := prCache[branch.Parent]
+		if parentPR != nil && parentPR.State == "MERGED" {
+			if verbose {
+				fmt.Printf("  ✗ Parent PR #%d has been merged\n", parentPR.Number)
+			}
+			issues = append(issues, fmt.Sprintf("  - Branch '%s': parent '%s' has been merged — run '%s' to reparent", ui.Branch(branch.Name), ui.Branch(branch.Parent), ui.Command("stack sync")))
+		} else if parentPR == nil && branch.Parent != baseBranch {
+			// No PR found for parent - check if parent was merged via git history
+			if merged, err := gitClient.IsAncestor(branch.Parent, "origin/"+baseBranch); err == nil && merged {
+				if verbose {
+					fmt.Printf("  ✗ Parent %s appears merged into %s via git history\n", branch.Parent, baseBranch)
+				}
+				issues = append(issues, fmt.Sprintf("  - Branch '%s': parent '%s' has been merged — run '%s' to reparent", ui.Branch(branch.Name), ui.Branch(branch.Parent), ui.Command("stack sync")))
+			}
+		}
+
 		// Check if PR base matches the configured parent (if PR exists)
 		if pr, exists := prCache[branch.Name]; exists {
 			if verbose {

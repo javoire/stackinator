@@ -119,3 +119,14 @@ Test patterns:
 ## Releases
 
 Releases are automated via GitHub Actions. When PRs are merged to main, a release is created automatically. Do not create releases manually.
+
+## Decision Log
+
+At the start of a session, read `decision-log.md` in the repo root for past architectural and design decisions.
+
+When making an architectural or design decision, add an entry to `decision-log.md` with:
+
+- **Date** (YYYY-MM-DD)
+- **Decision** — what was decided
+- **Context** — why it came up, what the problem was
+- **Resolution** — what was done and how

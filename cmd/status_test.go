@@ -148,6 +148,38 @@ func TestDetectSyncIssues(t *testing.T) {
 			},
 			expectedIssues: 1,
 		},
+		{
+			name: "parent PR is merged",
+			stackBranches: []stack.StackBranch{
+				{Name: "feature-b", Parent: "feature-a"},
+			},
+			prCache: map[string]*github.PRInfo{
+				"feature-a": {Number: 10, State: "MERGED", Base: "main"},
+				"feature-b": {Number: 11, State: "OPEN", Base: "feature-a"},
+			},
+			setupMocks: func(mockGit *testutil.MockGitClient) {
+				// PR base still matches parent, but parent is merged — should report merged parent issue
+				mockGit.On("IsCommitsBehind", "feature-b", "feature-a").Return(false, nil)
+				mockGit.On("RemoteBranchExists", "feature-b").Return(false)
+			},
+			expectedIssues: 1, // merged parent
+		},
+		{
+			name: "parent branch merged via git history (no PR for parent)",
+			stackBranches: []stack.StackBranch{
+				{Name: "feature-b", Parent: "feature-a"},
+			},
+			prCache: map[string]*github.PRInfo{
+				"feature-b": {Number: 11, State: "OPEN", Base: "feature-a"},
+			},
+			setupMocks: func(mockGit *testutil.MockGitClient) {
+				// Parent has no PR, but is ancestor of origin/main
+				mockGit.On("IsAncestor", "feature-a", "origin/main").Return(true, nil)
+				mockGit.On("IsCommitsBehind", "feature-b", "feature-a").Return(false, nil)
+				mockGit.On("RemoteBranchExists", "feature-b").Return(false)
+			},
+			expectedIssues: 1, // merged parent via git history
+		},
 	}
 
 	for _, tt := range tests {
