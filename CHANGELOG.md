@@ -1,3 +1,9 @@
+## [1.22.0](https://github.com/javoire/stackinator/compare/v1.21.1...v1.22.0) (2026-03-10)
+
+### Features
+
+* **switch:** add command to quickly switch between worktrees ([#78](https://github.com/javoire/stackinator/issues/78)) ([1cc1ea1](https://github.com/javoire/stackinator/commit/1cc1ea12253b1f7f6242cf8bbc76b3c0e7cd8668))
+
 ## [1.21.1](https://github.com/javoire/stackinator/compare/v1.21.0...v1.21.1) (2026-03-06)
 
 ### Bug Fixes
