@@ -85,6 +85,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(upCmd)
 	rootCmd.AddCommand(downCmd)
+	rootCmd.AddCommand(switchCmd)
 }
 
 // Execute runs the root command
