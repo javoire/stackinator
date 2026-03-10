@@ -37,7 +37,7 @@ func TestRunSwitch(t *testing.T) {
 		io.Copy(&buf, r)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "cd /home/user/.stack/worktrees/repo/feature-a\n", buf.String())
+		assert.Equal(t, "cd '/home/user/.stack/worktrees/repo/feature-a'\n", buf.String())
 		mockGit.AssertExpectations(t)
 	})
 
@@ -60,7 +60,7 @@ func TestRunSwitch(t *testing.T) {
 		io.Copy(&buf, r)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "cd /home/user/code/repo\n", buf.String())
+		assert.Equal(t, "cd '/home/user/code/repo'\n", buf.String())
 		mockGit.AssertExpectations(t)
 	})
 

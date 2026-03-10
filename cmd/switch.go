@@ -36,7 +36,7 @@ Use --install to add the shell function to your shell config.`,
 
   # Install shell function to ~/.zshrc
   stack switch --install`,
-	Annotations: map[string]string{},
+	Annotations: map[string]string{"skipGitValidation": "true"},
 	Args:        cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if switchInit {
@@ -51,6 +51,9 @@ Use --install to add the shell function to your shell config.`,
 			}
 			return
 		}
+
+		// Run root's PersistentPreRun for git validation
+		rootCmd.PersistentPreRun(cmd, args)
 
 		gitClient := git.NewGitClient()
 
@@ -70,14 +73,6 @@ Use --install to add the shell function to your shell config.`,
 func init() {
 	switchCmd.Flags().BoolVar(&switchInit, "init", false, "Output shell function for wrapping switch with cd")
 	switchCmd.Flags().BoolVar(&switchInstall, "install", false, "Add shell function to shell config")
-
-	// Skip git validation for --init and --install
-	switchCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		// Run root's PersistentPreRun only if we need git
-		if !switchInit && !switchInstall {
-			rootCmd.PersistentPreRun(cmd, args)
-		}
-	}
 }
 
 func runSwitchInit() {
@@ -98,7 +93,7 @@ func runSwitch(gitClient git.GitClient, branchName string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("cd %s\n", path)
+	fmt.Printf("cd '%s'\n", path)
 	return nil
 }
 
@@ -205,27 +200,24 @@ func runSwitchInteractive(gitClient git.GitClient) error {
 	}
 
 	selected := options[idx-1]
-	fmt.Printf("cd %s\n", selected.path)
+	fmt.Printf("cd '%s'\n", selected.path)
 	return nil
 }
 
 func runSwitchInstall() error {
+	homeDir, err := getHomeDir()
+	if err != nil {
+		return err
+	}
+
 	// Detect shell
 	shell := os.Getenv("SHELL")
 	var rcFile string
 	switch {
 	case strings.HasSuffix(shell, "/bash"):
-		homeDir, err := getHomeDir()
-		if err != nil {
-			return err
-		}
 		rcFile = filepath.Join(homeDir, ".bashrc")
 	default:
 		// Default to zsh
-		homeDir, err := getHomeDir()
-		if err != nil {
-			return err
-		}
 		rcFile = filepath.Join(homeDir, ".zshrc")
 	}
 
@@ -237,8 +229,14 @@ func runSwitchInstall() error {
 
 	// Check if already installed
 	initLine := `eval "$(stack switch --init)"`
-	if strings.Contains(string(content), "stack switch --init") {
+	if strings.Contains(string(content), initLine) {
 		fmt.Fprintf(os.Stderr, "Already installed in %s\n", rcFile)
+		return nil
+	}
+
+	// Dry-run: show what would be appended
+	if dryRun {
+		fmt.Fprintf(os.Stderr, "Would append to %s:\n%s\n", rcFile, initLine)
 		return nil
 	}
 
