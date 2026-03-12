@@ -98,17 +98,6 @@ func runSwitch(gitClient git.GitClient, branchName string) error {
 }
 
 func resolveWorktreePath(gitClient git.GitClient, branchName string) (string, error) {
-	// Check if it's the base branch
-	baseBranch := stack.GetBaseBranch(gitClient)
-	if branchName == baseBranch {
-		repoRoot, err := gitClient.GetRepoRoot()
-		if err != nil {
-			return "", fmt.Errorf("failed to get repo root: %w", err)
-		}
-		return repoRoot, nil
-	}
-
-	// Look up in worktree branches
 	worktreeBranches, err := gitClient.GetWorktreeBranches()
 	if err != nil {
 		return "", fmt.Errorf("failed to get worktree branches: %w", err)
@@ -150,18 +139,16 @@ func runSwitchInteractive(gitClient git.GitClient) error {
 	}
 	var options []option
 
-	// Add main repo
+	// Add main repo (base branch from worktree list)
 	baseBranch := stack.GetBaseBranch(gitClient)
-	repoRoot, err := gitClient.GetRepoRoot()
-	if err != nil {
-		return fmt.Errorf("failed to get repo root: %w", err)
+	if path, ok := worktreeBranches[baseBranch]; ok {
+		options = append(options, option{branch: baseBranch, path: path})
 	}
-	options = append(options, option{branch: baseBranch, path: repoRoot})
 
 	// Add worktrees filtered to this repo's worktrees dir
 	var sortedBranches []string
 	for branch, path := range worktreeBranches {
-		if pathWithinDir(path, worktreesDir) {
+		if branch != baseBranch && pathWithinDir(path, worktreesDir) {
 			sortedBranches = append(sortedBranches, branch)
 		}
 	}
