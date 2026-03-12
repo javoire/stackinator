@@ -17,8 +17,6 @@ func TestRunSwitch(t *testing.T) {
 	t.Run("resolves worktree branch to path", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main")
 		mockGit.On("GetWorktreeBranches").Return(map[string]string{
 			"feature-a": "/home/user/.stack/worktrees/repo/feature-a",
 			"feature-b": "/home/user/.stack/worktrees/repo/feature-b",
@@ -41,12 +39,13 @@ func TestRunSwitch(t *testing.T) {
 		mockGit.AssertExpectations(t)
 	})
 
-	t.Run("resolves base branch to repo root", func(t *testing.T) {
+	t.Run("resolves base branch to main repo via worktree list", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main")
-		mockGit.On("GetRepoRoot").Return("/home/user/code/repo", nil)
+		mockGit.On("GetWorktreeBranches").Return(map[string]string{
+			"main":      "/home/user/code/repo",
+			"feature-a": "/home/user/.stack/worktrees/repo/feature-a",
+		}, nil)
 
 		old := os.Stdout
 		r, w, _ := os.Pipe()
@@ -67,8 +66,6 @@ func TestRunSwitch(t *testing.T) {
 	t.Run("errors for unknown branch", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 
-		mockGit.On("GetConfig", "stack.baseBranch").Return("")
-		mockGit.On("GetDefaultBranch").Return("main")
 		mockGit.On("GetWorktreeBranches").Return(map[string]string{}, nil)
 
 		err := runSwitch(mockGit, "nonexistent")
