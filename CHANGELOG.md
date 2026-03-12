@@ -1,3 +1,9 @@
+## [1.22.1](https://github.com/javoire/stackinator/compare/v1.22.0...v1.22.1) (2026-03-12)
+
+### Bug Fixes
+
+* **switch:** resolve main worktree path from worktree list instead of repo root ([#79](https://github.com/javoire/stackinator/issues/79)) ([9d68dff](https://github.com/javoire/stackinator/commit/9d68dff804b6b228a27195b56dff10898b46bdf1))
+
 ## [1.22.0](https://github.com/javoire/stackinator/compare/v1.21.1...v1.22.0) (2026-03-10)
 
 ### Features
