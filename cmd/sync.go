@@ -511,7 +511,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		} else if _, exists := prCache[branch.Name]; !exists {
 			// No PR found - check if branch was merged via git history
 			remoteBase := syncRemote + "/" + baseBranch
-			if merged, err := gitClient.IsAncestor(branch.Name, remoteBase); err == nil && merged {
+			merged, err := gitClient.IsAncestor(branch.Name, remoteBase)
+			// If branch is ancestor of remote base, also check reverse: if both are ancestors
+			// of each other, they point to the same commit — a new branch with no commits, not merged
+			sameCommit := false
+			if err == nil && merged {
+				sameCommit, _ = gitClient.IsAncestor(remoteBase, branch.Name)
+			}
+			if err == nil && merged && !sameCommit {
 				fmt.Printf("%s Skipping %s (merged into %s, detected via git history)...\n", progress, ui.Branch(branch.Name), ui.Branch(baseBranch))
 				fmt.Printf("  Removing from stack tracking...\n")
 				configKey := fmt.Sprintf("branch.%s.stackparent", branch.Name)
@@ -540,7 +547,12 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		} else if parentPR == nil && branch.Parent != baseBranch {
 			// No PR found for parent - check if parent was merged via git history
 			remoteBase := syncRemote + "/" + baseBranch
-			if merged, err := gitClient.IsAncestor(branch.Parent, remoteBase); err == nil && merged {
+			merged, err := gitClient.IsAncestor(branch.Parent, remoteBase)
+			sameCommit := false
+			if err == nil && merged {
+				sameCommit, _ = gitClient.IsAncestor(remoteBase, branch.Parent)
+			}
+			if err == nil && merged && !sameCommit {
 				fmt.Printf("  Parent %s appears merged into %s (detected via git history)\n", ui.Branch(branch.Parent), ui.Branch(baseBranch))
 				oldParent = branch.Parent
 				parentMergedViaGit = true
