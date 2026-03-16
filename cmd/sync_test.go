@@ -1278,6 +1278,66 @@ func TestRunSyncGitBasedMergeDetection(t *testing.T) {
 		mockGH.AssertExpectations(t)
 	})
 
+	t.Run("branch with no commits is not treated as merged", func(t *testing.T) {
+		mockGit := new(testutil.MockGitClient)
+		mockGH := new(testutil.MockGitHubClient)
+
+		// Setup: no existing sync state
+		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
+		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
+		mockGit.On("SetConfig", "stack.sync.originalBranch", "feature-a").Return(nil)
+		mockGit.On("IsWorkingTreeClean").Return(true, nil)
+		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
+		mockGit.On("GetConfig", "stack.baseBranch").Return("").Maybe()
+		mockGit.On("GetDefaultBranch").Return("main").Maybe()
+
+		stackParents := map[string]string{
+			"feature-a": "main",
+		}
+		mockGit.On("GetAllStackParents").Return(stackParents, nil).Maybe()
+
+		// No PRs found
+		mockGit.On("FetchRemote", "origin").Return(nil)
+		mockGH.On("GetPRsForBranches", mock.Anything).Return(make(map[string]*github.PRInfo))
+
+		mockGit.On("GetWorktreeBranches").Return(make(map[string]string), nil)
+		mockGit.On("GetCurrentWorktreePath").Return("/Users/test/repo", nil)
+		mockGit.On("GetRemoteBranchesSet").Return(map[string]bool{
+			"main":      true,
+			"feature-a": true,
+		})
+
+		// feature-a has no commits: both IsAncestor directions return true (same commit)
+		mockGit.On("IsAncestor", "feature-a", "origin/main").Return(true, nil)
+		mockGit.On("IsAncestor", "origin/main", "feature-a").Return(true, nil)
+
+		// Branch should NOT be removed — should proceed to normal processing
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		mockGit.On("GetCommitHash", "feature-a").Return("main123", nil)
+		mockGit.On("GetCommitHash", "origin/feature-a").Return("main123", nil)
+		mockGit.On("FetchBranchFromRemote", "origin", "main").Return(nil)
+		mockGit.On("GetUniqueCommitsByPatch", "origin/main", "feature-a").Return([]string{}, nil)
+		mockGit.On("Rebase", "origin/main").Return(nil)
+		mockGit.On("FetchBranch", "feature-a").Return(nil)
+		mockGit.On("PushWithExpectedRemote", "feature-a", "main123").Return(nil)
+
+		// Return to original branch
+		mockGit.On("CheckoutBranch", "feature-a").Return(nil)
+		// Clean up sync state
+		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
+
+		err := runSync(mockGit, mockGH, "origin")
+
+		assert.NoError(t, err)
+		// Verify branch was NOT removed from stack tracking
+		mockGit.AssertNotCalled(t, "UnsetConfig", "branch.feature-a.stackparent")
+		mockGit.AssertExpectations(t)
+		mockGH.AssertExpectations(t)
+	})
+
 	t.Run("branch not merged via git is processed normally", func(t *testing.T) {
 		mockGit := new(testutil.MockGitClient)
 		mockGH := new(testutil.MockGitHubClient)
