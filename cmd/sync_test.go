@@ -1236,6 +1236,8 @@ func TestRunSyncGitBasedMergeDetection(t *testing.T) {
 
 		// feature-a: no PR, but IsAncestor returns true → merged via git history
 		mockGit.On("IsAncestor", "feature-a", "origin/main").Return(true, nil)
+		// Reverse check: origin/main is NOT ancestor of feature-a (branch has diverged, truly merged)
+		mockGit.On("IsAncestor", "origin/main", "feature-a").Return(false, nil)
 		// Remove feature-a from stack
 		mockGit.On("UnsetConfig", "branch.feature-a.stackparent").Return(nil)
 
@@ -1244,6 +1246,7 @@ func TestRunSyncGitBasedMergeDetection(t *testing.T) {
 
 		// feature-b's parent (feature-a) has no PR, parent merged via git
 		// IsAncestor("feature-a", "origin/main") already mocked above → true
+		// IsAncestor("origin/main", "feature-a") already mocked above → false (truly merged)
 
 		// Reparent feature-b from feature-a to main
 		mockGit.On("GetConfig", "branch.feature-a.stackparent").Return("main")
