@@ -1,3 +1,9 @@
+## [1.22.2](https://github.com/javoire/stackinator/compare/v1.22.1...v1.22.2) (2026-03-16)
+
+### Bug Fixes
+
+* **sync:** don't treat branches with no commits as merged ([#80](https://github.com/javoire/stackinator/issues/80)) ([8b4279c](https://github.com/javoire/stackinator/commit/8b4279c5c4d2f4fe7c981b889d6e37429cb926b7))
+
 ## [1.22.1](https://github.com/javoire/stackinator/compare/v1.22.0...v1.22.1) (2026-03-12)
 
 ### Bug Fixes
