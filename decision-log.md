@@ -2,6 +2,14 @@
 
 Architectural and design decisions for Stackinator.
 
+## 2026-05-07 — Add `--cross-worktree` flag to `stack sync`
+
+**Decision**: Allow `stack sync` to rebase branches checked out in other worktrees via `git -C <path>`, gated behind `--cross-worktree`.
+
+**Context**: `stack sync` skipped branches checked out in other worktrees because rebasing requires operating on the worktree's working directory. Users with stacks spread across worktrees had to manually sync each worktree.
+
+**Resolution**: Added `WithDir(path) GitClient` to the git client interface, which returns a new client that prepends `git -C <path>` to all commands. When `--cross-worktree` is passed, sync creates a dir-scoped client per cross-worktree branch and uses it for working-tree operations (rebase, cherry-pick, reset). Checkout is skipped since the branch is already checked out in the target worktree. Ref-only operations (push, fetch, commit hash) use the main client. Conflict resolution messages include the worktree path so users know where to `cd`. The flag is opt-in because rebasing in another worktree modifies that worktree's working directory.
+
 ## 2026-03-10 — Add `stack switch` command for worktree navigation
 
 **Decision**: Add a `switch` command that outputs `cd <path>` for quick worktree navigation.

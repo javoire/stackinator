@@ -2,6 +2,7 @@ package git
 
 // GitClient defines the interface for all git operations
 type GitClient interface {
+	WithDir(path string) GitClient
 	GetRepoRoot() (string, error)
 	GetRepoName() (string, error)
 	GetCurrentBranch() (string, error)
