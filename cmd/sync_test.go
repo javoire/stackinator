@@ -87,6 +87,7 @@ func TestRunSyncBasic(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -161,6 +162,7 @@ func TestRunSyncMergedParent(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -246,6 +248,7 @@ func TestRunSyncUpdatePRBase(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -317,6 +320,7 @@ func TestRunSyncStashHandling(t *testing.T) {
 		mockGit.On("StashPop").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -578,6 +582,7 @@ func TestRunSyncResume(t *testing.T) {
 		mockGit.On("StashPop").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -601,6 +606,7 @@ func TestRunSyncResume(t *testing.T) {
 		// Clean up orphaned state (user confirmed)
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		mockGit.On("GetCurrentBranch").Return("feature-a", nil)
@@ -645,6 +651,7 @@ func TestRunSyncResume(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -748,6 +755,7 @@ func TestRunSyncAutoConfiguresMissingStackparent(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -816,6 +824,7 @@ func TestRunSyncNoUniqueCommits(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -837,6 +846,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// No saved state
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("")
+		mockGit.On("GetConfig", "stack.sync.conflictWorktreePath").Return("")
 
 		// No rebase or cherry-pick in progress
 		mockGit.On("IsCherryPickInProgress").Return(false)
@@ -859,6 +869,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Saved state exists with stash
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("true")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
+		mockGit.On("GetConfig", "stack.sync.conflictWorktreePath").Return("")
 
 		// Rebase in progress (to trigger AbortRebase)
 		mockGit.On("IsCherryPickInProgress").Return(false)
@@ -878,6 +889,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -894,6 +906,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Saved state exists without stash (clean working tree)
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
+		mockGit.On("GetConfig", "stack.sync.conflictWorktreePath").Return("")
 
 		// Rebase in progress (to trigger AbortRebase)
 		mockGit.On("IsCherryPickInProgress").Return(false)
@@ -912,6 +925,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -928,6 +942,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Saved state exists
 		mockGit.On("GetConfig", "stack.sync.stashed").Return("")
 		mockGit.On("GetConfig", "stack.sync.originalBranch").Return("feature-a")
+		mockGit.On("GetConfig", "stack.sync.conflictWorktreePath").Return("")
 
 		// Rebase in progress (to trigger AbortRebase)
 		mockGit.On("IsCherryPickInProgress").Return(false)
@@ -944,6 +959,7 @@ func TestRunSyncAbort(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -1011,6 +1027,7 @@ func TestRunSyncWithUpstreamRemote(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "upstream")
@@ -1126,6 +1143,7 @@ func TestRunSyncSkipsWorktreeBranches(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -1231,6 +1249,7 @@ func TestRunSyncCrossWorktree(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -1377,6 +1396,7 @@ func TestRunSyncGitBasedMergeDetection(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -1435,6 +1455,7 @@ func TestRunSyncGitBasedMergeDetection(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")
@@ -1498,6 +1519,7 @@ func TestRunSyncGitBasedMergeDetection(t *testing.T) {
 		// Clean up sync state
 		mockGit.On("UnsetConfig", "stack.sync.stashed").Return(nil)
 		mockGit.On("UnsetConfig", "stack.sync.originalBranch").Return(nil)
+		mockGit.On("UnsetConfig", "stack.sync.conflictWorktreePath").Return(nil).Maybe()
 		mockGit.On("GetConfig", "stack.postSyncInstall").Return("false").Maybe()
 
 		err := runSync(mockGit, mockGH, "origin")

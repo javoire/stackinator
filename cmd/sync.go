@@ -34,8 +34,9 @@ var (
 
 // Git config keys for sync state persistence
 const (
-	configSyncStashed        = "stack.sync.stashed"
-	configSyncOriginalBranch = "stack.sync.originalBranch"
+	configSyncStashed            = "stack.sync.stashed"
+	configSyncOriginalBranch     = "stack.sync.originalBranch"
+	configSyncConflictWorktree   = "stack.sync.conflictWorktreePath"
 )
 
 var syncCmd = &cobra.Command{
@@ -150,6 +151,20 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		hasCherryPick := gitClient.IsCherryPickInProgress()
 		hasRebase := gitClient.IsRebaseInProgress()
 
+		// Check if the conflict was in a cross-worktree branch
+		savedConflictWorktree := gitClient.GetConfig(configSyncConflictWorktree)
+		var abortClient git.GitClient = gitClient
+		if savedConflictWorktree != "" {
+			abortClient = gitClient.WithDir(savedConflictWorktree)
+			// Also check for rebase/cherry-pick in the remote worktree
+			if !hasCherryPick {
+				hasCherryPick = abortClient.IsCherryPickInProgress()
+			}
+			if !hasRebase {
+				hasRebase = abortClient.IsRebaseInProgress()
+			}
+		}
+
 		if !hasSavedState && !hasCherryPick && !hasRebase {
 			return fmt.Errorf("no interrupted sync to abort\n\nUse 'stack sync' to start a new sync")
 		}
@@ -157,9 +172,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		fmt.Println("Aborting sync and cleaning up...")
 		fmt.Println()
 
+		if savedConflictWorktree != "" {
+			fmt.Printf("Conflict was in worktree at %s\n", savedConflictWorktree)
+		}
+
 		// Abort cherry-pick if one is in progress
 		if hasCherryPick {
-			if err := gitClient.AbortCherryPick(); err != nil {
+			if err := abortClient.AbortCherryPick(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to abort cherry-pick: %v\n", err)
 			} else {
 				fmt.Println(ui.Success("Aborted cherry-pick"))
@@ -170,7 +189,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 
 		// Abort rebase if one is in progress
 		if hasRebase {
-			if err := gitClient.AbortRebase(); err != nil {
+			if err := abortClient.AbortRebase(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to abort rebase: %v\n", err)
 			} else {
 				fmt.Println(ui.Success("Aborted rebase"))
@@ -206,6 +225,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		// Clean up sync state
 		_ = gitClient.UnsetConfig(configSyncStashed)
 		_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+		_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 
 		fmt.Println()
 		fmt.Println(ui.Success("Sync aborted and state cleaned up"))
@@ -245,6 +265,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			// Clean up stale state
 			_ = gitClient.UnsetConfig(configSyncStashed)
 			_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+			_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 		}
 
 		// Get current branch so we can return to it
@@ -296,6 +317,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			// Clean up sync state since we're restoring the stash
 			_ = gitClient.UnsetConfig(configSyncStashed)
 			_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+			_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 		}
 	}()
 
@@ -446,7 +468,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 	if len(worktreePathMap) > 0 {
 		if syncCrossWorktree {
 			for name, path := range worktreePathMap {
-				fmt.Printf("  Will sync %s in worktree at %s\n", ui.Branch(name), path)
+				fmt.Fprintf(os.Stderr, "  Will sync %s in worktree at %s\n", ui.Branch(name), path)
 			}
 		} else {
 			for name, path := range worktreePathMap {
@@ -669,6 +691,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					}
 				} else if mergeBase == localHash {
 					// Local is behind remote (safe to fast-forward)
+					// Guard: reset --hard destroys uncommitted changes in the target worktree
+					if crossWorktreePath != "" {
+						clean, cleanErr := branchClient.IsWorkingTreeClean()
+						if cleanErr == nil && !clean {
+							return fmt.Errorf("worktree at %s has uncommitted changes — commit or stash them before syncing", crossWorktreePath)
+						}
+					}
 					fmt.Printf("  Fast-forwarding to origin/%s...\n", branch.Name)
 					if err := branchClient.ResetToRemote(branch.Name); err != nil {
 						return fmt.Errorf("failed to fast-forward: %w", err)
@@ -772,9 +801,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					// Branch has polluted history: many more commits than unique patches
 					// This usually means branch diverged from parent's history (e.g., based on old backup)
 
+					if syncCherryPick && crossWorktreePath != "" {
+						fmt.Fprintf(os.Stderr, "\n")
+						fmt.Fprintf(os.Stderr, "⚠ --cherry-pick rebuild is not supported for cross-worktree branches\n")
+						fmt.Fprintf(os.Stderr, "  Run 'stack sync --cherry-pick' from the worktree at %s instead\n", crossWorktreePath)
+					}
+
 					if syncCherryPick && crossWorktreePath == "" {
 						// Automated cherry-pick rebuild with backup
-						// (not supported for cross-worktree: git refuses to delete a branch checked out in a worktree)
 						tempBranch := branch.Name + "-rebuild"
 
 						// Find available backup branch name
@@ -812,6 +846,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 							if err := branchClient.CherryPick(commit); err != nil {
 								// Cherry-pick conflict - let user resolve
 								rebaseConflict = true
+								if crossWorktreePath != "" {
+									_ = gitClient.SetConfig(configSyncConflictWorktree, crossWorktreePath)
+								}
 								fmt.Fprintf(os.Stderr, "\n  Cherry-pick conflict on %s. To continue:\n", commit[:8])
 								if crossWorktreePath != "" {
 									fmt.Fprintf(os.Stderr, "    0. cd %s\n", crossWorktreePath)
@@ -852,6 +889,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 
 					// No --cherry-pick flag: show warning and suggest the flag
 					rebaseConflict = true
+					if crossWorktreePath != "" {
+						_ = gitClient.SetConfig(configSyncConflictWorktree, crossWorktreePath)
+					}
 					fmt.Fprintf(os.Stderr, "\n")
 					fmt.Fprintf(os.Stderr, "⚠ Detected polluted branch history:\n")
 					fmt.Fprintf(os.Stderr, "  - %d commits in branch history\n", len(allCommits))
@@ -893,6 +933,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			},
 		); err != nil {
 			rebaseConflict = true
+			if crossWorktreePath != "" {
+				_ = gitClient.SetConfig(configSyncConflictWorktree, crossWorktreePath)
+			}
 			fmt.Fprintf(os.Stderr, "\n  Rebase conflict detected. To continue:\n")
 			if crossWorktreePath != "" {
 				fmt.Fprintf(os.Stderr, "    0. cd %s\n", crossWorktreePath)
@@ -1019,6 +1062,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 	// Clean up sync state (both stash flag and original branch)
 	_ = gitClient.UnsetConfig(configSyncStashed)
 	_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+	_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 
 	// Run post-sync install if a package manager is detected
 	runPostSyncInstall(gitClient)
