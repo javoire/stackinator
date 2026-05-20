@@ -62,6 +62,81 @@ func TestGetStackBranches(t *testing.T) {
 	}
 }
 
+func TestGetDescendants(t *testing.T) {
+	testutil.SetupTest()
+	defer testutil.TeardownTest()
+
+	tests := []struct {
+		name               string
+		branch             string
+		stackParents       map[string]string
+		expectedDescendants []string
+		expectError        bool
+	}{
+		{
+			name:   "branch with children and grandchildren",
+			branch: "feature-a",
+			stackParents: map[string]string{
+				"feature-a": "main",
+				"feature-b": "feature-a",
+				"feature-c": "feature-b",
+				"other":     "main",
+			},
+			expectedDescendants: []string{"feature-a", "feature-b", "feature-c"},
+			expectError:         false,
+		},
+		{
+			name:   "leaf branch with no children",
+			branch: "feature-c",
+			stackParents: map[string]string{
+				"feature-a": "main",
+				"feature-b": "feature-a",
+				"feature-c": "feature-b",
+			},
+			expectedDescendants: []string{"feature-c"},
+			expectError:         false,
+		},
+		{
+			name:   "branch with multiple children",
+			branch: "feature-a",
+			stackParents: map[string]string{
+				"feature-a": "main",
+				"feature-b": "feature-a",
+				"feature-c": "feature-a",
+			},
+			expectedDescendants: []string{"feature-a", "feature-b", "feature-c"},
+			expectError:         false,
+		},
+		{
+			name:   "branch not in any stack",
+			branch: "untracked",
+			stackParents: map[string]string{
+				"feature-a": "main",
+			},
+			expectedDescendants: []string{"untracked"},
+			expectError:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGit := new(testutil.MockGitClient)
+			mockGit.On("GetAllStackParents").Return(tt.stackParents, nil)
+
+			descendants, err := GetDescendants(mockGit, tt.branch)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, tt.expectedDescendants, descendants)
+			}
+
+			mockGit.AssertExpectations(t)
+		})
+	}
+}
+
 func TestGetStackChain(t *testing.T) {
 	testutil.SetupTest()
 	defer testutil.TeardownTest()

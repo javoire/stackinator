@@ -2,6 +2,14 @@
 
 Architectural and design decisions for Stackinator.
 
+## 2026-05-20 — Add `--all` flag to `stack sync`
+
+**Decision**: Allow `stack sync --all` to sync the full stack, not just the ancestor chain.
+
+**Context**: The default `stack sync` only processes the ancestor chain from the base branch up to the current branch. Children below the current branch are not synced. Users had to check out a leaf branch or run sync multiple times to propagate changes through the full stack.
+
+**Resolution**: Added `--all` flag that finds the root of the current branch's stack (first stack branch in the ancestor chain), then uses `GetDescendants` (BFS through children map) to collect all branches in the stack. The per-branch processing loop is unchanged — topological sort ensures correct ordering, and each branch rebases onto its configured parent.
+
 ## 2026-05-07 — Add `--cross-worktree` flag to `stack sync`
 
 **Decision**: Allow `stack sync` to rebase branches checked out in other worktrees via `git -C <path>`, gated behind `--cross-worktree`.
