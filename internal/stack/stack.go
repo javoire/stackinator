@@ -56,6 +56,36 @@ func GetChildrenOf(gitClient git.GitClient, branch string) ([]StackBranch, error
 	return children, nil
 }
 
+// GetDescendants returns the specified branch and all its descendants in the stack
+func GetDescendants(gitClient git.GitClient, branch string) ([]string, error) {
+	allBranches, err := GetStackBranches(gitClient)
+	if err != nil {
+		return nil, err
+	}
+
+	childrenMap := make(map[string][]string)
+	for _, b := range allBranches {
+		childrenMap[b.Parent] = append(childrenMap[b.Parent], b.Name)
+	}
+
+	var result []string
+	queue := []string{branch}
+	visited := make(map[string]bool)
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+		result = append(result, current)
+		queue = append(queue, childrenMap[current]...)
+	}
+
+	return result, nil
+}
+
 // GetStackChain returns the chain from the base to the specified branch
 func GetStackChain(gitClient git.GitClient, branch string) ([]string, error) {
 	// Get all parents at once for efficiency

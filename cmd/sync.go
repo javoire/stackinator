@@ -28,6 +28,7 @@ var (
 	syncAbort          bool
 	syncCherryPick     bool
 	syncCrossWorktree  bool
+	syncAll            bool
 	// stdinReader allows tests to inject mock input for prompts
 	stdinReader io.Reader = os.Stdin
 )
@@ -66,6 +67,9 @@ Stack branches are always pushed to 'origin'.`,
 	Args: cobra.MaximumNArgs(1),
 	Example: `  # Sync all branches and update PRs
   stack sync
+
+  # Sync the full stack including children below the current branch
+  stack sync --all
 
   # Sync fetching base branches from upstream (fork workflow)
   stack sync upstream
@@ -132,6 +136,7 @@ func init() {
 	syncCmd.Flags().BoolVarP(&syncAbort, "abort", "a", false, "Abort an interrupted sync and clean up state")
 	syncCmd.Flags().BoolVar(&syncCherryPick, "cherry-pick", false, "Rebuild polluted branches by cherry-picking unique commits (creates backup)")
 	syncCmd.Flags().BoolVar(&syncCrossWorktree, "cross-worktree", false, "Also sync branches checked out in other worktrees (uses git -C)")
+	syncCmd.Flags().BoolVar(&syncAll, "all", false, "Sync the full stack including children below the current branch")
 }
 
 func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemote string) error {
@@ -350,15 +355,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		}
 	}()
 
-	// While network operations run in background, do local work
-	// Get only branches in the current branch's stack
+	// While network operations run in background, determine which branches to sync
+	// Get the ancestor chain for the current branch
 	chain, err := stack.GetStackChain(gitClient, originalBranch)
 	if err != nil {
 		return fmt.Errorf("failed to get stack chain: %w", err)
 	}
 
 	if len(chain) == 0 {
-		// Wait for parallel operations before returning
 		wg.Wait()
 		if fetchErr != nil {
 			return fmt.Errorf("failed to fetch: %w", fetchErr)
@@ -374,13 +378,33 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		return nil
 	}
 
-	// Build set of branches in current stack
-	chainSet := make(map[string]bool)
-	for _, b := range chain {
-		chainSet[b] = true
+	// Determine which branches to sync
+	var branchSet map[string]bool
+
+	if syncAll {
+		// Sync the full tree: find the root stack branch and get all descendants
+		root := chain[0]
+		if root == baseBranch && len(chain) > 1 {
+			root = chain[1]
+		}
+
+		descendants, err := stack.GetDescendants(gitClient, root)
+		if err != nil {
+			return fmt.Errorf("failed to get stack tree: %w", err)
+		}
+
+		branchSet = make(map[string]bool)
+		for _, d := range descendants {
+			branchSet[d] = true
+		}
+	} else {
+		// Default: sync only the ancestor chain up to the current branch
+		branchSet = make(map[string]bool)
+		for _, b := range chain {
+			branchSet[b] = true
+		}
 	}
 
-	// Get all stack branches and filter to current stack only
 	allStackBranches, err := stack.GetStackBranches(gitClient)
 	if err != nil {
 		return fmt.Errorf("failed to get stack branches: %w", err)
@@ -388,7 +412,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 
 	var stackBranches []stack.StackBranch
 	for _, b := range allStackBranches {
-		if chainSet[b.Name] {
+		if branchSet[b.Name] {
 			stackBranches = append(stackBranches, b)
 		}
 	}
@@ -400,16 +424,14 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		existingBranchNames[b.Name] = true
 	}
 
-	// Walk the chain and add missing branches
 	for i, branchName := range chain {
 		if branchName == baseBranch {
-			continue // Skip base branch
+			continue
 		}
 		if existingBranchNames[branchName] {
-			continue // Already in stackBranches
+			continue
 		}
 
-		// Infer parent from chain (previous branch in the chain)
 		var inferredParent string
 		if i > 0 {
 			inferredParent = chain[i-1]
@@ -417,7 +439,6 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			inferredParent = baseBranch
 		}
 
-		// Check if branch exists locally before adding
 		if gitClient.BranchExists(branchName) {
 			stackBranches = append(stackBranches, stack.StackBranch{
 				Name:   branchName,
@@ -425,7 +446,6 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			})
 			existingBranchNames[branchName] = true
 
-			// Configure stackparent so future syncs work correctly
 			configKey := fmt.Sprintf("branch.%s.stackparent", branchName)
 			if err := gitClient.SetConfig(configKey, inferredParent); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set stackparent for %s: %v\n", branchName, err)
