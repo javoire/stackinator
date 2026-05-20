@@ -1,3 +1,9 @@
+## [1.23.0](https://github.com/javoire/stackinator/compare/v1.22.2...v1.23.0) (2026-05-20)
+
+### Features
+
+* **sync:** add --cross-worktree flag to sync branches across worktrees ([#81](https://github.com/javoire/stackinator/issues/81)) ([2a50827](https://github.com/javoire/stackinator/commit/2a508272c1b5256a3a478200052685d60b250b6d))
+
 ## [1.22.2](https://github.com/javoire/stackinator/compare/v1.22.1...v1.22.2) (2026-03-16)
 
 ### Bug Fixes
