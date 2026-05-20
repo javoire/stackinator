@@ -23,18 +23,20 @@ import (
 var errAlreadyPrinted = errors.New("")
 
 var (
-	syncForce      bool
-	syncResume     bool
-	syncAbort      bool
-	syncCherryPick bool
+	syncForce          bool
+	syncResume         bool
+	syncAbort          bool
+	syncCherryPick     bool
+	syncCrossWorktree  bool
 	// stdinReader allows tests to inject mock input for prompts
 	stdinReader io.Reader = os.Stdin
 )
 
 // Git config keys for sync state persistence
 const (
-	configSyncStashed        = "stack.sync.stashed"
-	configSyncOriginalBranch = "stack.sync.originalBranch"
+	configSyncStashed            = "stack.sync.stashed"
+	configSyncOriginalBranch     = "stack.sync.originalBranch"
+	configSyncConflictWorktree   = "stack.sync.conflictWorktreePath"
 )
 
 var syncCmd = &cobra.Command{
@@ -67,6 +69,9 @@ Stack branches are always pushed to 'origin'.`,
 
   # Sync fetching base branches from upstream (fork workflow)
   stack sync upstream
+
+  # Also sync branches checked out in other worktrees
+  stack sync --cross-worktree
 
   # Preview what would happen
   stack sync --dry-run
@@ -126,6 +131,7 @@ func init() {
 	syncCmd.Flags().BoolVarP(&syncResume, "resume", "r", false, "Resume a sync after resolving rebase conflicts")
 	syncCmd.Flags().BoolVarP(&syncAbort, "abort", "a", false, "Abort an interrupted sync and clean up state")
 	syncCmd.Flags().BoolVar(&syncCherryPick, "cherry-pick", false, "Rebuild polluted branches by cherry-picking unique commits (creates backup)")
+	syncCmd.Flags().BoolVar(&syncCrossWorktree, "cross-worktree", false, "Also sync branches checked out in other worktrees (uses git -C)")
 }
 
 func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemote string) error {
@@ -145,6 +151,20 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		hasCherryPick := gitClient.IsCherryPickInProgress()
 		hasRebase := gitClient.IsRebaseInProgress()
 
+		// Check if the conflict was in a cross-worktree branch
+		savedConflictWorktree := gitClient.GetConfig(configSyncConflictWorktree)
+		var abortClient git.GitClient = gitClient
+		if savedConflictWorktree != "" {
+			abortClient = gitClient.WithDir(savedConflictWorktree)
+			// Also check for rebase/cherry-pick in the remote worktree
+			if !hasCherryPick {
+				hasCherryPick = abortClient.IsCherryPickInProgress()
+			}
+			if !hasRebase {
+				hasRebase = abortClient.IsRebaseInProgress()
+			}
+		}
+
 		if !hasSavedState && !hasCherryPick && !hasRebase {
 			return fmt.Errorf("no interrupted sync to abort\n\nUse 'stack sync' to start a new sync")
 		}
@@ -152,9 +172,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		fmt.Println("Aborting sync and cleaning up...")
 		fmt.Println()
 
+		if savedConflictWorktree != "" {
+			fmt.Printf("Conflict was in worktree at %s\n", savedConflictWorktree)
+		}
+
 		// Abort cherry-pick if one is in progress
 		if hasCherryPick {
-			if err := gitClient.AbortCherryPick(); err != nil {
+			if err := abortClient.AbortCherryPick(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to abort cherry-pick: %v\n", err)
 			} else {
 				fmt.Println(ui.Success("Aborted cherry-pick"))
@@ -165,7 +189,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 
 		// Abort rebase if one is in progress
 		if hasRebase {
-			if err := gitClient.AbortRebase(); err != nil {
+			if err := abortClient.AbortRebase(); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to abort rebase: %v\n", err)
 			} else {
 				fmt.Println(ui.Success("Aborted rebase"))
@@ -201,6 +225,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		// Clean up sync state
 		_ = gitClient.UnsetConfig(configSyncStashed)
 		_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+		_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 
 		fmt.Println()
 		fmt.Println(ui.Success("Sync aborted and state cleaned up"))
@@ -240,6 +265,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			// Clean up stale state
 			_ = gitClient.UnsetConfig(configSyncStashed)
 			_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+			_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 		}
 
 		// Get current branch so we can return to it
@@ -291,6 +317,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			// Clean up sync state since we're restoring the stash
 			_ = gitClient.UnsetConfig(configSyncStashed)
 			_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+			_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 		}
 	}()
 
@@ -428,17 +455,26 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		currentWorktreePath = ""
 	}
 
-	worktreeSkipSet := make(map[string]string)
+	// Map branches in other worktrees to their paths
+	worktreePathMap := make(map[string]string)
 	for _, branch := range sorted {
 		if worktreePath, inWorktree := worktrees[branch.Name]; inWorktree {
 			if currentWorktreePath != worktreePath {
-				worktreeSkipSet[branch.Name] = worktreePath
+				worktreePathMap[branch.Name] = worktreePath
 			}
 		}
 	}
-	if len(worktreeSkipSet) > 0 {
-		for name, path := range worktreeSkipSet {
-			fmt.Fprintf(os.Stderr, "%s Skipping %s (checked out in worktree at %s)\n", ui.WarningIcon(), ui.Branch(name), path)
+
+	if len(worktreePathMap) > 0 {
+		if syncCrossWorktree {
+			for name, path := range worktreePathMap {
+				fmt.Fprintf(os.Stderr, "  Will sync %s in worktree at %s\n", ui.Branch(name), path)
+			}
+		} else {
+			for name, path := range worktreePathMap {
+				fmt.Fprintf(os.Stderr, "%s Skipping %s (checked out in worktree at %s)\n", ui.WarningIcon(), ui.Branch(name), path)
+			}
+			fmt.Fprintf(os.Stderr, "  Use %s to sync them in-place\n", ui.Command("--cross-worktree"))
 		}
 		fmt.Println()
 	}
@@ -487,8 +523,8 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 	for i, branch := range sorted {
 		progress := ui.Progress(i+1, len(sorted))
 
-		// Skip branches checked out in other worktrees
-		if worktreePath, skip := worktreeSkipSet[branch.Name]; skip {
+		// Skip branches checked out in other worktrees (unless --cross-worktree)
+		if worktreePath, inOtherWorktree := worktreePathMap[branch.Name]; inOtherWorktree && !syncCrossWorktree {
 			fmt.Printf("%s Skipping %s (checked out in %s)\n\n", progress, ui.Branch(branch.Name), worktreePath)
 			continue
 		}
@@ -587,9 +623,23 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 			}
 		}
 
-		// Checkout the branch
-		if err := gitClient.CheckoutBranch(branch.Name); err != nil {
-			return fmt.Errorf("failed to checkout %s: %w", branch.Name, err)
+		// Determine which git client to use for this branch.
+		// Cross-worktree branches use git -C <path> to operate in their worktree.
+		// branchClient is used for working-tree operations (rebase, reset, cherry-pick).
+		// gitClient is used for ref-only operations (push, fetch, commit hashes).
+		branchClient := gitClient
+		var crossWorktreePath string
+		if wtPath, ok := worktreePathMap[branch.Name]; ok && syncCrossWorktree {
+			branchClient = gitClient.WithDir(wtPath)
+			crossWorktreePath = wtPath
+			fmt.Printf("  (syncing via worktree at %s)\n", crossWorktreePath)
+		}
+
+		// Checkout the branch (skip for cross-worktree — already checked out there)
+		if crossWorktreePath == "" {
+			if err := gitClient.CheckoutBranch(branch.Name); err != nil {
+				return fmt.Errorf("failed to checkout %s: %w", branch.Name, err)
+			}
 		}
 
 		// Sync with remote branch if it exists (unless --force is set)
@@ -641,8 +691,15 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					}
 				} else if mergeBase == localHash {
 					// Local is behind remote (safe to fast-forward)
+					// Guard: reset --hard destroys uncommitted changes in the target worktree
+					if crossWorktreePath != "" {
+						clean, cleanErr := branchClient.IsWorkingTreeClean()
+						if cleanErr == nil && !clean {
+							return fmt.Errorf("worktree at %s has uncommitted changes — commit or stash them before syncing", crossWorktreePath)
+						}
+					}
 					fmt.Printf("  Fast-forwarding to origin/%s...\n", branch.Name)
-					if err := gitClient.ResetToRemote(branch.Name); err != nil {
+					if err := branchClient.ResetToRemote(branch.Name); err != nil {
 						return fmt.Errorf("failed to fast-forward: %w", err)
 					}
 				} else {
@@ -694,7 +751,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					// Parent was merged - use --onto to handle squash merge
 					// This excludes commits from oldParent that are now in rebaseTarget
 					fmt.Printf("  Using --onto to handle squash merge (excluding commits from %s)\n", oldParent)
-					return gitClient.RebaseOnto(rebaseTarget, oldParent, branch.Name)
+					return branchClient.RebaseOnto(rebaseTarget, oldParent, branch.Name)
 				}
 
 				// Get unique commits in this branch by comparing patch content (not just SHAs)
@@ -705,7 +762,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					if git.Verbose {
 						fmt.Printf("  Could not get unique commits by patch, using regular rebase: %v\n", err)
 					}
-					return gitClient.Rebase(rebaseTarget)
+					return branchClient.Rebase(rebaseTarget)
 				}
 
 				// If no unique commits by patch comparison, just do a simple rebase.
@@ -715,7 +772,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					if git.Verbose {
 						fmt.Printf("  No unique patches found, rebasing to incorporate target updates\n")
 					}
-					return gitClient.Rebase(rebaseTarget)
+					return branchClient.Rebase(rebaseTarget)
 				}
 
 				if git.Verbose {
@@ -729,13 +786,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					if git.Verbose {
 						fmt.Printf("  Could not find merge-base, using regular rebase: %v\n", err)
 					}
-					return gitClient.Rebase(rebaseTarget)
+					return branchClient.Rebase(rebaseTarget)
 				}
 
 				rebaseTargetHash, err := gitClient.GetCommitHash(rebaseTarget)
 				if err == nil && mergeBase == rebaseTargetHash {
 					// Parent hasn't changed since we branched, regular rebase is fine
-					return gitClient.Rebase(rebaseTarget)
+					return branchClient.Rebase(rebaseTarget)
 				}
 
 				// Count commits from merge-base to current branch (total commits in branch history)
@@ -744,7 +801,13 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					// Branch has polluted history: many more commits than unique patches
 					// This usually means branch diverged from parent's history (e.g., based on old backup)
 
-					if syncCherryPick {
+					if syncCherryPick && crossWorktreePath != "" {
+						fmt.Fprintf(os.Stderr, "\n")
+						fmt.Fprintf(os.Stderr, "⚠ --cherry-pick rebuild is not supported for cross-worktree branches\n")
+						fmt.Fprintf(os.Stderr, "  Run 'stack sync --cherry-pick' from the worktree at %s instead\n", crossWorktreePath)
+					}
+
+					if syncCherryPick && crossWorktreePath == "" {
 						// Automated cherry-pick rebuild with backup
 						tempBranch := branch.Name + "-rebuild"
 
@@ -765,25 +828,31 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 
 						fmt.Printf("  Rebuilding with %d unique commit(s)...\n", len(uniqueCommits))
 
-						// Checkout parent branch
-						if err := gitClient.CheckoutBranch(rebaseTarget); err != nil {
+						// Checkout parent branch (in the target worktree)
+						if err := branchClient.CheckoutBranch(rebaseTarget); err != nil {
 							return fmt.Errorf("failed to checkout parent %s: %w", rebaseTarget, err)
 						}
 
-						// Create temp branch from parent
-						if err := gitClient.CreateBranchAndCheckout(tempBranch, rebaseTarget); err != nil {
+						// Create temp branch from parent (in the target worktree)
+						if err := branchClient.CreateBranchAndCheckout(tempBranch, rebaseTarget); err != nil {
 							return fmt.Errorf("failed to create temp branch: %w", err)
 						}
 
-						// Cherry-pick each unique commit
+						// Cherry-pick each unique commit (in the target worktree)
 						for _, commit := range uniqueCommits {
 							if git.Verbose {
 								fmt.Printf("    Cherry-picking %s\n", commit[:8])
 							}
-							if err := gitClient.CherryPick(commit); err != nil {
+							if err := branchClient.CherryPick(commit); err != nil {
 								// Cherry-pick conflict - let user resolve
 								rebaseConflict = true
+								if crossWorktreePath != "" {
+									_ = gitClient.SetConfig(configSyncConflictWorktree, crossWorktreePath)
+								}
 								fmt.Fprintf(os.Stderr, "\n  Cherry-pick conflict on %s. To continue:\n", commit[:8])
+								if crossWorktreePath != "" {
+									fmt.Fprintf(os.Stderr, "    0. cd %s\n", crossWorktreePath)
+								}
 								fmt.Fprintf(os.Stderr, "    1. Resolve the conflicts\n")
 								fmt.Fprintf(os.Stderr, "    2. Run 'git add <resolved files>'\n")
 								fmt.Fprintf(os.Stderr, "    3. Run 'git cherry-pick --continue'\n")
@@ -801,7 +870,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 						}
 
 						// We're on tempBranch, rename it to the original branch name
-						if err := gitClient.RenameBranch(tempBranch, branch.Name); err != nil {
+						if err := branchClient.RenameBranch(tempBranch, branch.Name); err != nil {
 							return fmt.Errorf("failed to rename temp branch: %w", err)
 						}
 
@@ -820,6 +889,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 
 					// No --cherry-pick flag: show warning and suggest the flag
 					rebaseConflict = true
+					if crossWorktreePath != "" {
+						_ = gitClient.SetConfig(configSyncConflictWorktree, crossWorktreePath)
+					}
 					fmt.Fprintf(os.Stderr, "\n")
 					fmt.Fprintf(os.Stderr, "⚠ Detected polluted branch history:\n")
 					fmt.Fprintf(os.Stderr, "  - %d commits in branch history\n", len(allCommits))
@@ -832,6 +904,9 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 					fmt.Fprintf(os.Stderr, "  (Creates backup branch before rebuilding)\n")
 					fmt.Fprintf(os.Stderr, "\n")
 					fmt.Fprintf(os.Stderr, "Or rebuild manually:\n")
+					if crossWorktreePath != "" {
+						fmt.Fprintf(os.Stderr, "  0. cd %s\n", crossWorktreePath)
+					}
 					fmt.Fprintf(os.Stderr, "  1. git checkout %s\n", branch.Parent)
 					fmt.Fprintf(os.Stderr, "  2. git checkout -b %s-clean\n", branch.Name)
 					for i, commit := range uniqueCommits {
@@ -854,11 +929,17 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 				if git.Verbose {
 					fmt.Printf("  Using --onto with merge-base %s to handle rebased parent\n", mergeBase[:8])
 				}
-				return gitClient.RebaseOnto(rebaseTarget, mergeBase, branch.Name)
+				return branchClient.RebaseOnto(rebaseTarget, mergeBase, branch.Name)
 			},
 		); err != nil {
 			rebaseConflict = true
+			if crossWorktreePath != "" {
+				_ = gitClient.SetConfig(configSyncConflictWorktree, crossWorktreePath)
+			}
 			fmt.Fprintf(os.Stderr, "\n  Rebase conflict detected. To continue:\n")
+			if crossWorktreePath != "" {
+				fmt.Fprintf(os.Stderr, "    0. cd %s\n", crossWorktreePath)
+			}
 			fmt.Fprintf(os.Stderr, "    1. Resolve the conflicts\n")
 			fmt.Fprintf(os.Stderr, "    2. Run 'git add <resolved files>'\n")
 			fmt.Fprintf(os.Stderr, "    3. Run 'git rebase --continue'\n")
@@ -981,6 +1062,7 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 	// Clean up sync state (both stash flag and original branch)
 	_ = gitClient.UnsetConfig(configSyncStashed)
 	_ = gitClient.UnsetConfig(configSyncOriginalBranch)
+	_ = gitClient.UnsetConfig(configSyncConflictWorktree)
 
 	// Run post-sync install if a package manager is detected
 	runPostSyncInstall(gitClient)

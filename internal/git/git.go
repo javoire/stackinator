@@ -15,15 +15,32 @@ var Verbose = false
 var DryRun = false
 
 // gitClient implements the GitClient interface using exec.Command
-type gitClient struct{}
+type gitClient struct {
+	dir string
+}
 
 // NewGitClient creates a new GitClient implementation
 func NewGitClient() GitClient {
 	return &gitClient{}
 }
 
+// WithDir returns a new GitClient that runs all commands with git -C <path>.
+// Useful for operating on a different worktree.
+func (c *gitClient) WithDir(path string) GitClient {
+	return &gitClient{dir: path}
+}
+
+// gitArgs prepends -C <dir> when the client is scoped to a directory
+func (c *gitClient) gitArgs(args ...string) []string {
+	if c.dir != "" {
+		return append([]string{"-C", c.dir}, args...)
+	}
+	return args
+}
+
 // runCmd executes a git command and returns stdout
 func (c *gitClient) runCmd(args ...string) (string, error) {
+	args = c.gitArgs(args...)
 	if Verbose {
 		fmt.Printf("  [git] %s\n", strings.Join(args, " "))
 	}
@@ -42,6 +59,7 @@ func (c *gitClient) runCmd(args ...string) (string, error) {
 
 // runCmdMayFail runs a command that might fail (returns empty string on error)
 func (c *gitClient) runCmdMayFail(args ...string) string {
+	args = c.gitArgs(args...)
 	if Verbose {
 		fmt.Printf("  [git] %s\n", strings.Join(args, " "))
 	}
@@ -690,10 +708,11 @@ func (c *gitClient) ListWorktrees() ([]string, error) {
 // IsAncestor checks if commit is an ancestor of branch using git merge-base --is-ancestor.
 // Returns true if commit is an ancestor, false if not. Other exit codes return an error.
 func (c *gitClient) IsAncestor(commit, branch string) (bool, error) {
+	args := c.gitArgs("merge-base", "--is-ancestor", commit, branch)
 	if Verbose {
-		fmt.Printf("  [git] merge-base --is-ancestor %s %s\n", commit, branch)
+		fmt.Printf("  [git] %s\n", strings.Join(args, " "))
 	}
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, branch)
+	cmd := exec.Command("git", args...)
 	err := cmd.Run()
 	if err == nil {
 		return true, nil
@@ -703,7 +722,7 @@ func (c *gitClient) IsAncestor(commit, branch string) (bool, error) {
 			return false, nil
 		}
 	}
-	return false, fmt.Errorf("git merge-base --is-ancestor %s %s failed: %v", commit, branch, err)
+	return false, fmt.Errorf("git %s failed: %v", strings.Join(args, " "), err)
 }
 
 // GetRemoteURL returns the URL of the specified remote (e.g., "origin")

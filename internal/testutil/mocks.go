@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"github.com/javoire/stackinator/internal/git"
 	"github.com/javoire/stackinator/internal/github"
 	"github.com/stretchr/testify/mock"
 )
@@ -8,6 +9,11 @@ import (
 // MockGitClient is a mock implementation of git.GitClient for testing
 type MockGitClient struct {
 	mock.Mock
+}
+
+func (m *MockGitClient) WithDir(path string) git.GitClient {
+	args := m.Called(path)
+	return args.Get(0).(git.GitClient)
 }
 
 func (m *MockGitClient) GetRepoRoot() (string, error) {
