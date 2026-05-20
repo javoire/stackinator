@@ -1,3 +1,9 @@
+## [1.24.0](https://github.com/javoire/stackinator/compare/v1.23.0...v1.24.0) (2026-05-20)
+
+### Features
+
+* **sync:** add --all flag to sync full stack including descendants ([#82](https://github.com/javoire/stackinator/issues/82)) ([0cdede2](https://github.com/javoire/stackinator/commit/0cdede271892b53157efa2d871d28194d3534b2c))
+
 ## [1.23.0](https://github.com/javoire/stackinator/compare/v1.22.2...v1.23.0) (2026-05-20)
 
 ### Features
