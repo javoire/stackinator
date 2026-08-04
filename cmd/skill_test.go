@@ -20,17 +20,20 @@ func TestRunSkillInstall_NoToolsFound(t *testing.T) {
 }
 
 func TestInstallCodex(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	binDir := t.TempDir()
+	logPath := filepath.Join(t.TempDir(), "codex.log")
+	t.Setenv("CODEX_TEST_LOG", logPath)
+	t.Setenv("PATH", binDir)
+
+	codexPath := filepath.Join(binDir, "codex")
+	require.NoError(t, os.WriteFile(codexPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CODEX_TEST_LOG\"\n"), 0755))
 
 	err := installCodex()
 	require.NoError(t, err)
 
-	dest := filepath.Join(home, ".agents", "skills", "stack", "SKILL.md")
-	content, err := os.ReadFile(dest)
+	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "name: stack")
-	assert.Contains(t, string(content), "## Common Commands")
+	assert.Equal(t, "plugin marketplace add javoire/stackinator\nplugin add stack@stackinator\n", string(content))
 }
 
 func TestInstallCursor(t *testing.T) {
@@ -45,7 +48,7 @@ func TestInstallCursor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "alwaysApply: true")
 	assert.Contains(t, string(content), "description:")
-	assert.Contains(t, string(content), "## Common Commands")
+	assert.Contains(t, string(content), "## Inspect and navigate")
 	// Should not contain SKILL.md frontmatter
 	assert.NotContains(t, string(content), "name: stack")
 }
@@ -53,7 +56,13 @@ func TestInstallCursor(t *testing.T) {
 func TestSkillBody(t *testing.T) {
 	body := skillBody()
 	assert.False(t, strings.HasPrefix(body, "---"))
-	assert.Contains(t, body, "## Common Commands")
+	assert.Contains(t, body, "## Inspect and navigate")
+}
+
+func TestSkillDescription(t *testing.T) {
+	description := skillDescription()
+	assert.Contains(t, description, "Manage stacked Git branches")
+	assert.NotContains(t, description, "description:")
 }
 
 func TestDetectCursor_WithDir(t *testing.T) {

@@ -1,0 +1,30 @@
+{
+  "name": "stack",
+  "version": "1.0.0",
+  "description": "Stacked branch management for the stack CLI",
+  "author": {
+    "name": "javoire",
+    "url": "https://github.com/javoire"
+  },
+  "homepage": "https://github.com/javoire/stackinator",
+  "repository": "https://github.com/javoire/stackinator",
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "github",
+    "stacked-branches",
+    "pull-requests"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Stack",
+    "shortDescription": "Manage stacked Git branches and pull requests.",
+    "longDescription": "Create, navigate, synchronize, and clean up stacked Git branches with the Stackinator CLI.",
+    "developerName": "javoire",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": "Help me manage my stacked branches with the stack CLI."
+  }
+}

@@ -2,6 +2,14 @@
 
 Architectural and design decisions for Stackinator.
 
+## 2026-08-04 — Distribute the Codex skill through a plugin marketplace
+
+**Decision**: Publish the existing Stackinator skill as a Codex plugin from the Stackinator repository.
+
+**Context**: `stack skill install` copied `SKILL.md` directly into `~/.agents/skills/stack`, while Claude Code installed the same skill from the repository marketplace. Direct copies could drift from the CLI and lacked Codex plugin lifecycle support.
+
+**Resolution**: Add a repository-local Codex marketplace and plugin manifest around the shared `plugins/stack/skills/stack/SKILL.md`. Change the Codex installer to register `javoire/stackinator` and install `stack@stackinator`; keep the existing Claude marketplace and Cursor rule installation.
+
 ## 2026-05-20 — Add `--all` flag to `stack sync`
 
 **Decision**: Allow `stack sync --all` to sync the full stack, not just the ancestor chain.

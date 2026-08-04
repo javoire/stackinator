@@ -1,40 +1,39 @@
 ---
 name: stack
-description: Manage stacked branches with the stack CLI. Covers branch creation, navigation, syncing, and PR management.
+description: Manage stacked Git branches with the stack CLI. Use when creating or navigating stack branches and worktrees, changing parent relationships, syncing branches and pull-request bases, recovering an interrupted sync, or pruning merged branches.
 ---
 
-The `stack` CLI manages stacked branches and syncs them to GitHub PRs. Use this for working with dependent branches.
+The `stack` CLI stores branch parent relationships in Git config and syncs them with GitHub pull requests.
 
-## Choosing Between `stack worktree` vs `stack new`
+## Create branches
 
-- **`stack worktree <branch>`** - Creates a separate git worktree directory at `~/.stack/worktrees/<repo>/<branch>`. Use when:
-  - Starting a new feature from master
-  - Want to work on multiple things in parallel without stashing
-  - The current worktree has uncommitted changes you want to keep
+- Use `stack new <branch> [parent]` to create and check out a branch in the current worktree. Without an explicit parent, it uses the current stack branch or the configured base branch.
+- Use `stack worktree <branch> [base]` to create a separate worktree under `~/.stack/worktrees/<repo>`. For a fresh branch from `main`, run `stack worktree <branch> main`; without `[base]`, a new branch starts from the current branch.
+- Prefer a worktree when working in parallel or preserving changes in the current worktree.
 
-- **`stack new <branch>`** - Creates a branch in the current worktree. Use when:
-  - Building on top of the current feature branch (stacked PRs)
-  - Already in a worktree and want to add dependent branches
+## Inspect and navigate
 
-## Common Commands
+- `stack show` displays the local stack without network access.
+- `stack status` includes pull-request state and sync issues; use `--no-pr` for a faster local-only view.
+- `stack up` checks out the parent branch. `stack down` checks out a child and prompts when multiple children exist.
+- `stack switch [branch]` prints a command for changing to a branch's worktree. Use the installed shell wrapper or `eval "$(stack switch [branch])"` so the current shell changes directory.
+- `stack parent` shows the current parent; `stack parent <new-parent>` changes it and updates an existing PR base.
+- `stack rename <new-name>` renames the current branch while preserving stack relationships.
 
-- `stack new <branch>` - Create new branch in the stack (use instead of `git checkout -b`)
-- `stack status` - Show stack structure with PR status (fetches from GitHub)
-- `stack show` - Show local stack structure (fast, no network)
-- `stack sync` - Sync branches and update PRs on GitHub
-- `stack up` / `stack down` - Navigate up/down the stack
-- `stack prune` - Clean up merged branches
-- `stack reparent <parent>` - Change the parent branch
-- `stack rename <name>` - Rename the current branch
-- `stack worktree` - Create a git worktree for parallel work
+## Sync
 
-## Workflow
+Run `stack sync [remote]` to fetch the base remote, rebase branches bottom-to-top, force-push them to `origin` with lease protection, and update the bases of existing PRs. It does not create missing PRs; use `gh pr create` for those.
 
-1. Start a new feature from master: `stack worktree feature-name`
-   - Or use `stack new feature-name` if building stacked PRs on a feature branch
-2. Make changes and commit
-3. Sync to GitHub: `stack sync` (creates/updates PR)
-4. Check status: `stack status`
-5. After merge: `stack prune` to clean up
+- Use `stack sync --dry-run` to preview mutations.
+- Use `stack sync --all` to include descendants below the current branch.
+- Use `stack sync --cross-worktree` to include branches checked out in other worktrees.
+- Use `stack sync <remote>` in fork workflows; the fetch remote otherwise comes from `stack.fetchRemote`, then `upstream`, then `origin`. Branches are always pushed to `origin`.
+- After resolving rebase conflicts, run `stack sync --resume`. Run `stack sync --abort` to abandon an interrupted sync and restore saved state.
+- Use `--force` only when intentionally bypassing force-with-lease protection.
 
-Run `stack --help` for full documentation.
+## Clean up
+
+- `stack prune` deletes local stack branches whose PRs are merged. Preview with `--dry-run`; `--all` also checks non-stack branches.
+- `stack worktree --prune` removes worktrees for merged branches. `stack worktree --list` lists worktrees.
+
+Run `stack <command> --help` for complete, version-specific flags before unusual or destructive operations.
