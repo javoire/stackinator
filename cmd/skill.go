@@ -88,6 +88,16 @@ func skillBody() string {
 	return content
 }
 
+// skillDescription returns the description from the embedded SKILL.md frontmatter.
+func skillDescription() string {
+	for _, line := range strings.Split(skillcontent.SkillMD, "\n") {
+		if description, found := strings.CutPrefix(line, "description:"); found {
+			return strings.TrimSpace(description)
+		}
+	}
+	return "Manage stacked branches with the stack CLI."
+}
+
 func installClaude() error {
 	fmt.Println("Adding stackinator marketplace...")
 	addCmd := exec.Command("claude", "plugin", "marketplace", "add", "javoire/stackinator")
@@ -108,22 +118,21 @@ func installClaude() error {
 }
 
 func installCodex() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+	fmt.Println("Adding stackinator marketplace...")
+	addCmd := exec.Command("codex", "plugin", "marketplace", "add", "javoire/stackinator")
+	addCmd.Stdout = os.Stdout
+	addCmd.Stderr = os.Stderr
+	if err := addCmd.Run(); err != nil {
+		return fmt.Errorf("failed to add marketplace: %w", err)
 	}
 
-	dir := filepath.Join(home, ".agents", "skills", "stack")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	fmt.Println("Installing stack skill...")
+	installCmd := exec.Command("codex", "plugin", "add", "stack@stackinator")
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install skill: %w", err)
 	}
-
-	dest := filepath.Join(dir, "SKILL.md")
-	if err := os.WriteFile(dest, []byte(skillcontent.SkillMD), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", dest, err)
-	}
-
-	fmt.Printf("Wrote %s\n", dest)
 	return nil
 }
 
@@ -139,7 +148,7 @@ func installCursor() error {
 	}
 
 	body := skillBody()
-	mdc := "---\ndescription: Manage stacked branches with the stack CLI. Covers branch creation, navigation, syncing, and PR management.\nalwaysApply: true\n---\n\n" + body
+	mdc := fmt.Sprintf("---\ndescription: %s\nalwaysApply: true\n---\n\n%s", skillDescription(), body)
 
 	dest := filepath.Join(dir, "stack.mdc")
 	if err := os.WriteFile(dest, []byte(mdc), 0644); err != nil {

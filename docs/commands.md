@@ -161,7 +161,7 @@ Install the stack skill for AI coding tools so they know how to use the stack CL
 Automatically detects which supported tools are installed and installs for all of them:
 
 - **Claude Code** - via plugin marketplace (`claude` CLI required)
-- **Codex** - writes `SKILL.md` to `~/.agents/skills/stack/` (`codex` CLI required)
+- **Codex** - installs the plugin from the Stackinator marketplace (`codex` CLI required)
 - **Cursor** - writes `stack.mdc` to `~/.cursor/rules/` (`cursor` CLI or `~/.cursor/` directory required)
 
 ```bash

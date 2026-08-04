@@ -87,7 +87,7 @@ See [Commands Reference](docs/commands.md) for full documentation.
 - `stack parent` - Show the parent of the current branch
 - `stack prune` - Clean up branches with merged PRs
 - `stack rename <new-name>` - Rename branch preserving stack relationships
-- `stack reparent <new-parent>` - Change the parent of the current branch
+- `stack parent <new-parent>` - Change the parent of the current branch
 - `stack worktree <branch-name>` - Create a worktree for a branch
 
 ## Configuration
@@ -122,6 +122,13 @@ For Claude Code, run:
 ```
 /plugin marketplace add javoire/stackinator
 /plugin install stack@stackinator
+```
+
+For Codex, run:
+
+```bash
+codex plugin marketplace add javoire/stackinator
+codex plugin add stack@stackinator
 ```
 
 ## Documentation

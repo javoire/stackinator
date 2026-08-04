@@ -1,0 +1,20 @@
+{
+  "name": "stackinator",
+  "interface": {
+    "displayName": "Stackinator"
+  },
+  "plugins": [
+    {
+      "name": "stack",
+      "source": {
+        "source": "local",
+        "path": "./plugins/stack"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
