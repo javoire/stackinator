@@ -1,3 +1,5 @@
+## [1.25.1](https://github.com/javoire/stackinator/compare/v1.25.0...v1.25.1) (2026-08-12)
+
 ## [1.25.0](https://github.com/javoire/stackinator/compare/v1.24.0...v1.25.0) (2026-08-04)
 
 ## [1.24.0](https://github.com/javoire/stackinator/compare/v1.23.0...v1.24.0) (2026-05-20)
