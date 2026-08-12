@@ -1,7 +1,11 @@
 package github
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -76,6 +80,34 @@ func TestParseRepoFromURL(t *testing.T) {
 	}
 }
 
+func TestGetPRsForBranchesTimesOut(t *testing.T) {
+	tempDir := t.TempDir()
+	ghPath := filepath.Join(tempDir, "gh")
+	assert.NoError(t, os.WriteFile(ghPath, []byte("#!/bin/sh\nexec sleep 10\n"), 0o755))
+	t.Setenv("PATH", tempDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	previousTimeout := commandTimeout
+	commandTimeout = 20 * time.Millisecond
+	t.Cleanup(func() { commandTimeout = previousTimeout })
+
+	prs, err := NewGitHubClient("ghe.spotify.net/org/repo").GetPRsForBranches([]string{"feature"})
+	assert.Empty(t, prs)
+	assert.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "failed to load PR for feature"), err.Error())
+	assert.True(t, strings.Contains(err.Error(), "timed out after 20ms"), err.Error())
+}
+
+func TestGetPRForBranchTreatsMissingPRAsAbsent(t *testing.T) {
+	tempDir := t.TempDir()
+	ghPath := filepath.Join(tempDir, "gh")
+	script := "#!/bin/sh\necho 'no pull requests found for branch feature' >&2\nexit 1\n"
+	assert.NoError(t, os.WriteFile(ghPath, []byte(script), 0o755))
+	t.Setenv("PATH", tempDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	pr, err := NewGitHubClient("owner/repo").GetPRForBranch("feature")
+	assert.NoError(t, err)
+	assert.Nil(t, pr)
+}
+
 // Note: More comprehensive tests would require mocking exec.Command or running actual gh CLI commands
 // For unit tests focused on critical path, we rely on integration tests or testutil mocks
-

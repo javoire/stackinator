@@ -23,21 +23,21 @@ import (
 var errAlreadyPrinted = errors.New("")
 
 var (
-	syncForce          bool
-	syncResume         bool
-	syncAbort          bool
-	syncCherryPick     bool
-	syncCrossWorktree  bool
-	syncAll            bool
+	syncForce         bool
+	syncResume        bool
+	syncAbort         bool
+	syncCherryPick    bool
+	syncCrossWorktree bool
+	syncAll           bool
 	// stdinReader allows tests to inject mock input for prompts
 	stdinReader io.Reader = os.Stdin
 )
 
 // Git config keys for sync state persistence
 const (
-	configSyncStashed            = "stack.sync.stashed"
-	configSyncOriginalBranch     = "stack.sync.originalBranch"
-	configSyncConflictWorktree   = "stack.sync.conflictWorktreePath"
+	configSyncStashed          = "stack.sync.stashed"
+	configSyncOriginalBranch   = "stack.sync.originalBranch"
+	configSyncConflictWorktree = "stack.sync.conflictWorktreePath"
 )
 
 var syncCmd = &cobra.Command{
@@ -510,24 +510,33 @@ func runSync(gitClient git.GitClient, githubClient github.GitHubClient, syncRemo
 		prBranches = append(prBranches, b)
 	}
 
-	// Wait for git fetch and fetch PRs in parallel for stack branches only
+	// Wait for the bounded git fetch before loading PRs. Keeping these as separate
+	// progress steps makes it clear which network dependency is slow or failed.
 	var prCache map[string]*github.PRInfo
-	fetchMsg := fmt.Sprintf("Fetching from %s and loading PRs...", syncRemote)
-	fetchDoneMsg := fmt.Sprintf("Fetched from %s and loaded PRs", syncRemote)
+	fetchMsg := fmt.Sprintf("Fetching from %s...", syncRemote)
+	fetchDoneMsg := fmt.Sprintf("Fetched from %s", syncRemote)
 	if err := spinner.WrapWithSuccess(fetchMsg, fetchDoneMsg, func() error {
 		wg.Wait()
-		prCache = githubClient.GetPRsForBranches(prBranches)
+		if fetchErr != nil {
+			return fmt.Errorf("failed to fetch from %s: %w", syncRemote, fetchErr)
+		}
+		if originFetchErr != nil {
+			return fmt.Errorf("failed to fetch from origin: %w", originFetchErr)
+		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	// Check for fetch errors
-	if fetchErr != nil {
-		return fmt.Errorf("failed to fetch from %s: %w", syncRemote, fetchErr)
-	}
-	if originFetchErr != nil {
-		return fmt.Errorf("failed to fetch from origin: %w", originFetchErr)
+	if err := spinner.WrapWithSuccess("Loading PRs...", "Loaded PRs", func() error {
+		var err error
+		prCache, err = githubClient.GetPRsForBranches(prBranches)
+		if err != nil {
+			return fmt.Errorf("failed to load PRs: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	// Get all remote branches in one call (more efficient than checking each branch individually)

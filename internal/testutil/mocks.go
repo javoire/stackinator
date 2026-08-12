@@ -300,9 +300,13 @@ func (m *MockGitHubClient) GetPRForBranch(branch string) (*github.PRInfo, error)
 	return args.Get(0).(*github.PRInfo), args.Error(1)
 }
 
-func (m *MockGitHubClient) GetPRsForBranches(branches []string) map[string]*github.PRInfo {
+func (m *MockGitHubClient) GetPRsForBranches(branches []string) (map[string]*github.PRInfo, error) {
 	args := m.Called(branches)
-	return args.Get(0).(map[string]*github.PRInfo)
+	var err error
+	if len(args) > 1 {
+		err = args.Error(1)
+	}
+	return args.Get(0).(map[string]*github.PRInfo), err
 }
 
 func (m *MockGitHubClient) UpdatePRBase(prNumber int, newBase string) error {

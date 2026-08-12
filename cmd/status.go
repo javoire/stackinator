@@ -115,7 +115,10 @@ func runStatus(gitClient git.GitClient, githubClient github.GitHubClient) error 
 
 		// Fetch PRs for stack branches only (parallel individual fetches)
 		if !noPR {
-			prCache = githubClient.GetPRsForBranches(allTreeBranches)
+			prCache, err = githubClient.GetPRsForBranches(allTreeBranches)
+			if err != nil {
+				return fmt.Errorf("failed to load PRs: %w", err)
+			}
 		}
 
 		return nil
