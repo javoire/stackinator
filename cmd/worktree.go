@@ -438,8 +438,9 @@ func runWorktreePrune(gitClient git.GitClient, githubClient github.GitHubClient)
 		}
 		var prCache map[string]*github.PRInfo
 		if err := spinner.WrapWithSuccess("Fetching PRs...", "Fetched PRs", func() error {
-			prCache = githubClient.GetPRsForBranches(wtBranches)
-			return nil
+			var err error
+			prCache, err = githubClient.GetPRsForBranches(wtBranches)
+			return err
 		}); err != nil {
 			return fmt.Errorf("failed to fetch PRs: %w", err)
 		}

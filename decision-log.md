@@ -2,6 +2,14 @@
 
 Architectural and design decisions for Stackinator.
 
+## 2026-08-12 — Bound and separate sync network operations
+
+**Decision**: Give git fetches a five-minute timeout and GitHub CLI operations a 30-second timeout. Display fetch and PR loading as separate sync progress steps, and propagate PR lookup failures.
+
+**Context**: `stack sync` grouped an unbounded background `git fetch` and unbounded parallel `gh pr view` calls under one spinner. A stalled remote, credential helper, or GHE request could therefore hang forever at `Fetching from origin and loading PRs...`, and GitHub errors were silently interpreted as missing PRs.
+
+**Resolution**: Run fetch and GitHub subprocesses with context deadlines and a bounded pipe wait. Wait for fetch and PR loading in distinct spinner steps so the active dependency is visible. Return PR lookup failures to callers while preserving the normal no-PR result.
+
 ## 2026-08-04 — Distribute the Codex skill through a plugin marketplace
 
 **Decision**: Publish the existing Stackinator skill as a Codex plugin from the Stackinator repository.

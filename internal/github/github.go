@@ -2,12 +2,15 @@ package github
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Verbose controls whether to print executed commands
@@ -15,6 +18,10 @@ var Verbose = false
 
 // DryRun controls whether to actually execute mutation commands
 var DryRun = false
+
+// commandTimeout prevents an unresponsive GitHub host or credential helper
+// from blocking stack operations forever. It is a variable for fast tests.
+var commandTimeout = 30 * time.Second
 
 // PRInfo contains information about a Pull Request
 type PRInfo struct {
@@ -98,13 +105,19 @@ func (c *githubClient) runGH(args ...string) (string, error) {
 	if Verbose {
 		fmt.Printf("  [gh] %s\n", strings.Join(args, " "))
 	}
-	cmd := exec.Command("gh", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd.WaitDelay = 2 * time.Second
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("gh %s timed out after %s: %w", strings.Join(args, " "), commandTimeout, ctx.Err())
+		}
 		return "", fmt.Errorf("gh %s failed: %s", strings.Join(args, " "), stderr.String())
 	}
 
@@ -115,8 +128,13 @@ func (c *githubClient) runGH(args ...string) (string, error) {
 func (c *githubClient) GetPRForBranch(branch string) (*PRInfo, error) {
 	output, err := c.runGH("pr", "view", branch, "--json", "number,state,baseRefName,title,url,mergeStateStatus")
 	if err != nil {
-		// No PR exists for this branch
-		return nil, nil
+		// gh uses a non-zero exit status when no PR exists. Preserve that behavior,
+		// but surface timeouts and operational failures instead of silently treating
+		// them as an absent PR.
+		if strings.Contains(strings.ToLower(err.Error()), "no pull requests found") {
+			return nil, nil
+		}
+		return nil, err
 	}
 
 	var data struct {
@@ -145,16 +163,24 @@ func (c *githubClient) GetPRForBranch(branch string) (*PRInfo, error) {
 // GetPRsForBranches fetches PR info for specific branches in parallel.
 // This is much faster than bulk-fetching all PRs on large repos (500+ PRs),
 // where `gh pr list --limit 500` can time out with 502 Bad Gateway.
-func (c *githubClient) GetPRsForBranches(branches []string) map[string]*PRInfo {
+func (c *githubClient) GetPRsForBranches(branches []string) (map[string]*PRInfo, error) {
 	result := make(map[string]*PRInfo)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var errs []error
 
 	for _, branch := range branches {
 		wg.Add(1)
 		go func(b string) {
 			defer wg.Done()
-			if pr, err := c.GetPRForBranch(b); err == nil && pr != nil {
+			pr, err := c.GetPRForBranch(b)
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("failed to load PR for %s: %w", b, err))
+				mu.Unlock()
+				return
+			}
+			if pr != nil {
 				mu.Lock()
 				result[b] = pr
 				mu.Unlock()
@@ -163,7 +189,7 @@ func (c *githubClient) GetPRsForBranches(branches []string) map[string]*PRInfo {
 	}
 
 	wg.Wait()
-	return result
+	return result, errors.Join(errs...)
 }
 
 // UpdatePRBase updates the base branch of a PR

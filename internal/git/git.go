@@ -2,10 +2,12 @@ package git
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Verbose controls whether to print executed commands
@@ -13,6 +15,10 @@ var Verbose = false
 
 // DryRun controls whether to actually execute mutation commands
 var DryRun = false
+
+// fetchTimeout prevents a stalled remote or credential helper from blocking a
+// sync forever. It is a variable so timeout behavior can be tested quickly.
+var fetchTimeout = 5 * time.Minute
 
 // gitClient implements the GitClient interface using exec.Command
 type gitClient struct {
@@ -40,17 +46,25 @@ func (c *gitClient) gitArgs(args ...string) []string {
 
 // runCmd executes a git command and returns stdout
 func (c *gitClient) runCmd(args ...string) (string, error) {
+	return c.runCmdWithContext(context.Background(), args...)
+}
+
+func (c *gitClient) runCmdWithContext(ctx context.Context, args ...string) (string, error) {
 	args = c.gitArgs(args...)
 	if Verbose {
 		fmt.Printf("  [git] %s\n", strings.Join(args, " "))
 	}
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.WaitDelay = 2 * time.Second
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("git %s timed out: %w", strings.Join(args, " "), ctx.Err())
+		}
 		return "", fmt.Errorf("git %s failed: %s", strings.Join(args, " "), stderr.String())
 	}
 
@@ -308,7 +322,9 @@ func (c *gitClient) FetchRemote(remote string) error {
 		fmt.Printf("  [DRY RUN] git fetch %s\n", remote)
 		return nil
 	}
-	_, err := c.runCmd("fetch", remote)
+	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
+	defer cancel()
+	_, err := c.runCmdWithContext(ctx, "fetch", remote)
 	return err
 }
 
