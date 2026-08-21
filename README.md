@@ -88,7 +88,7 @@ See [Commands Reference](docs/commands.md) for full documentation.
 - `stack prune` - Clean up branches with merged PRs
 - `stack rename <new-name>` - Rename branch preserving stack relationships
 - `stack parent <new-parent>` - Change the parent of the current branch
-- `stack worktree <branch-name>` - Create a worktree for a branch
+- `stack worktree [branch-name]` - Create a worktree, generating a randomized branch name when omitted
 
 ## Configuration
 

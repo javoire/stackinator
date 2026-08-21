@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,20 +20,24 @@ var worktreePruneAll bool
 var worktreeList bool
 
 var worktreeCmd = &cobra.Command{
-	Use:   "worktree <branch-name> [base-branch]",
+	Use:   "worktree [branch-name] [base-branch]",
 	Short: "Create a worktree in the configured worktrees directory",
-	Long: `Create a git worktree in the configured worktrees directory for the specified branch.
+	Long: `Create a git worktree in the configured worktrees directory.
 
 If the branch exists locally or on the remote, it will be used.
 If the branch doesn't exist, a new branch will be created from the current branch
 (or from base-branch if specified) and stack tracking will be set up automatically.
+If no branch name is specified, a randomized branch name will be generated.
 Use --list to show worktrees for this repository, or --list --all for all repos.
 Use --prune to clean up worktrees for branches with merged PRs.
 Use --prune --all to remove all worktrees for this repository.
 
 By default, worktrees are created under ~/.stack/worktrees/<reponame>.
 You can change this with: git config stack.worktreesDir <path> (or use 'stack config set')`,
-	Example: `  # Create worktree for new branch (from current branch, with stack tracking)
+	Example: `  # Create a worktree with a randomized branch name
+  stack worktree
+
+  # Create worktree for new branch (from current branch, with stack tracking)
   stack worktree my-feature
 
   # Create worktree from a fresh main branch
@@ -67,8 +73,8 @@ You can change this with: git config stack.worktreesDir <path> (or use 'stack co
 			}
 			return nil
 		}
-		if len(args) < 1 || len(args) > 2 {
-			return fmt.Errorf("requires 1 or 2 arguments: branch name [base-branch]")
+		if len(args) > 2 {
+			return fmt.Errorf("accepts at most 2 arguments: branch name [base-branch]")
 		}
 		return nil
 	},
@@ -83,17 +89,37 @@ You can change this with: git config stack.worktreesDir <path> (or use 'stack co
 		} else if worktreePrune {
 			err = runWorktreePrune(gitClient, githubClient)
 		} else {
+			branchName := ""
+			if len(args) > 0 {
+				branchName = args[0]
+			}
 			var baseBranch string
 			if len(args) > 1 {
 				baseBranch = args[1]
 			}
-			err = runWorktree(gitClient, githubClient, args[0], baseBranch)
+			if branchName == "" {
+				branchName, err = generateRandomWorktreeName()
+				if err == nil {
+					fmt.Printf("Generated branch name %s\n", ui.Branch(branchName))
+				}
+			}
+			if err == nil {
+				err = runWorktree(gitClient, githubClient, branchName, baseBranch)
+			}
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
+}
+
+func generateRandomWorktreeName() (string, error) {
+	randomBytes := make([]byte, 8)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random worktree name: %w", err)
+	}
+	return "worktree-" + hex.EncodeToString(randomBytes), nil
 }
 
 func init() {
