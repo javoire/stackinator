@@ -61,6 +61,9 @@ You can change this with: git config stack.worktreesDir <path> (or use 'stack co
   # Preview without executing
   stack worktree my-feature --dry-run`,
 	Args: func(cmd *cobra.Command, args []string) error {
+		if worktreePruneAll && !worktreeList && !worktreePrune {
+			return fmt.Errorf("--all requires --list or --prune")
+		}
 		if worktreeList {
 			if len(args) > 0 {
 				return fmt.Errorf("--list does not take arguments")
