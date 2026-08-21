@@ -2,6 +2,14 @@
 
 Architectural and design decisions for Stackinator.
 
+## 2026-08-17 — Generate a randomized worktree when no branch is provided
+
+**Decision**: Allow `stack worktree` with no arguments to create a new branch and worktree using a randomized `worktree-<16 hex characters>` name.
+
+**Context**: Creating a disposable worktree required inventing and typing a branch name even when the name itself was unimportant.
+
+**Resolution**: Made the branch-name argument optional. No-argument invocation generates the name with the operating system's cryptographic random source, then follows the existing new-branch worktree flow so the current branch is recorded as its stack parent. Explicit branch names and worktree management flags retain their existing behavior.
+
 ## 2026-08-12 — Bound and separate sync network operations
 
 **Decision**: Give git fetches a five-minute timeout and GitHub CLI operations a 30-second timeout. Display fetch and PR loading as separate sync progress steps, and propagate PR lookup failures.

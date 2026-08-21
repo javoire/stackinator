@@ -109,9 +109,9 @@ stack rename feature-improved-name
 stack rename feature-improved-name --dry-run
 ```
 
-## `stack worktree <branch-name> [base-branch]`
+## `stack worktree [branch-name] [base-branch]`
 
-Create a git worktree in the configured worktrees directory for the specified branch.
+Create a git worktree in the configured worktrees directory. With no arguments, Stackinator generates a randomized branch name such as `worktree-a1b2c3d4e5f60718` and creates it from the current branch.
 
 If the branch exists locally or on the remote, it will be used. If the branch doesn't exist, a new branch will be created from the current branch (or from base-branch if specified) and stack tracking will be set up automatically.
 
@@ -137,6 +137,9 @@ Interactively choose where worktrees are created for this repo:
 - `./.worktrees` (project-local)
 
 ```bash
+# Create a worktree with a randomized branch name
+stack worktree
+
 # Create worktree for new branch (from current branch, with stack tracking)
 stack worktree my-feature
 
